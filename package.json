@@ -5,7 +5,7 @@
   "scripts": {
     "assembler": "node outils/assembler.mjs",
     "regles": "node outils/generer-regles.mjs",
-    "test": "node --test tests/regles.test.mjs && node --test --test-concurrency=1 tests/parcours.test.mjs"
+    "test": "node --test tests/regles.test.mjs tests/regles-gestion.test.mjs tests/relais.test.mjs && node --test --test-concurrency=1 tests/parcours.test.mjs tests/gestion.test.mjs"
   },
   "author": "Souleymane Diallo",
   "license": "UNLICENSED",

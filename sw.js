@@ -3,7 +3,7 @@
    déploiement est pris en compte dès l'ouverture suivante, sans dépendre
    du numéro de version. La copie locale ne sert que hors connexion.
    Changer VERSION seulement si les icônes ou le manifeste changent. */
-var VERSION = 'loges-v1-20261025';
+var VERSION = 'loges-v6-20261025';
 var STATIQUE = ['manifest.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
