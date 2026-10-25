@@ -217,6 +217,12 @@ select.fi{appearance:auto}
 @media (max-width:480px){.claire .g3{grid-template-columns:1fr}}
 .claire .sec-form{font-size:13px;font-weight:800;color:var(--accent);margin:8px 0 10px;padding-top:10px;border-top:1px solid var(--bord)}
 .claire .sec-form:first-child{border-top:none;padding-top:0;margin-top:0}
+.claire .photo-ch{display:flex;gap:14px;align-items:center;margin-bottom:14px}
+.claire .photo-ap{width:92px;height:110px;border-radius:12px;border:1px dashed #b8c2d6;background:#f7f9fd;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;color:#8a94a6;font-size:11.5px;text-align:center}
+.claire .photo-ap img{width:100%;height:100%;object-fit:cover}
+.claire .avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#eef1f6;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:#8a94a6;font-size:12px;font-weight:700;overflow:hidden}
+.claire .avatar img{width:100%;height:100%;object-fit:cover}
+.claire .photo-fiche{width:110px;height:132px;border-radius:12px;object-fit:cover;border:1px solid var(--bord);background:#f7f9fd}
 .claire .aide-mdp{font-size:12.5px;color:var(--texte2);margin:-4px 0 10px;line-height:1.5}
 .claire tr.lien{cursor:pointer}
 .claire tr.lien:hover td{background:#f5f8ff}
@@ -538,7 +544,7 @@ select.fi{appearance:auto}
    CONFIGURATION DE LA PLATEFORME LOGES
    ================================================================ */
 var LOGES = {
-  version: '1.2.0 — 25/10/2026',
+  version: '1.3.0 — 25/10/2026',
   firebase: {
     apiKey: 'AIzaSyAilF7eamC09Bxj_Hi7J_UcJnvCtvsi6rE',
     authDomain: 'loges-b8212.firebaseapp.com',
@@ -820,7 +826,11 @@ var Fb = (function () {
     sdk: 'Impossible de charger Firebase. Vérifiez la connexion Internet.',
     conflit: "Plusieurs enregistrements simultanés : l'opération n'a pas abouti. Réessayez."
   };
-  function message(e) { return MESSAGES[e && e.code] || (e && e.message) || 'Erreur inattendue.'; }
+  function message(e) {
+    if (e && e.code === 'permission' && window.LOGES_REGLES_ANCIENNES)
+      return "Opération refusée : la base de données utilise encore les règles de sécurité d'une version précédente. Le concepteur doit publier le fichier database.rules.json de cette version (console Firebase → Realtime Database → Règles).";
+    return MESSAGES[e && e.code] || (e && e.message) || 'Erreur inattendue.';
+  }
 
   /* ---------------- Chargement du SDK et adresse de la base ---------------- */
   function script(src) {
@@ -1287,28 +1297,29 @@ var Ecole = (function () {
   // Droits par rôle (les mêmes limites sont imposées par les règles de la base)
   var DROITS = {
     fondation: { comptes: 'gerer', parametres: 'gerer', annees: 'lire', licence: true, journal: ['admin', 'pedagogie', 'finance', 'plateforme'],
-      classes: 'lire', eleves: 'lire', personnel: 'lire', edt: 'lire', matieres: 'lire', finances: null },
+      classes: 'gerer', eleves: 'lire', personnel: 'gerer', edt: 'lire', matieres: 'lire', finances: null, paie: null },
     direction: { comptes: 'lire', parametres: 'lire', annees: 'gerer', licence: false, journal: ['pedagogie'],
-      classes: 'gerer', eleves: 'lire', personnel: 'gerer', edt: 'gerer', matieres: 'gerer', finances: null },
+      classes: 'gerer', eleves: 'lire', personnel: 'gerer', edt: 'gerer', matieres: 'gerer', finances: null, paie: null },
     comptabilite: { comptes: null, parametres: 'lire', annees: 'lire', licence: true, journal: ['finance'],
-      classes: 'lire', eleves: 'gerer', personnel: null, edt: null, matieres: null, finances: 'gerer' }
+      classes: 'lire', eleves: 'gerer', personnel: null, edt: null, matieres: null, finances: 'gerer', paie: 'gerer' }
   };
   var STATUT_ANNEE = { preparation: ['En préparation', 'ambre'], ouverte: ['Ouverte', 'vert'], cloturee: ['Clôturée', 'gris'], archivee: ['Archivée', 'gris'] };
   var ACTIONS = { creation: 'Création', modification: 'Modification', ouverture: 'Ouverture', cloture: 'Clôture', archivage: 'Archivage',
     reouverture: 'Réouverture', desactivation: 'Désactivation', reactivation: 'Réactivation', remise_acces: "Remise d'accès",
     declaration: 'Déclaration de paiement', deblocage: 'Déblocage', blocage: 'Blocage', activation: 'Activation de licence',
-    prolongation: "Prolongation d'essai", paiement_valide: 'Paiement validé', paiement_rejete: 'Paiement rejeté', courante: 'Année courante',
+    prolongation: "Prolongation d'essai", paiement_valide: 'Paiement validé', paiement_rejete: 'Paiement rejeté', courante: 'Année courante', suppression: 'Suppression',
+    salaire: 'Versement de salaire', bulletin: 'Bulletin de paie',
     inscription: 'Inscription', reinscription: 'Réinscription', versement: 'Versement', annulation: 'Annulation', sortie: 'Sortie',
     reintegration: 'Réintégration', changement_classe: 'Changement de classe', rappel: 'Rappel de paiement', depart: 'Départ' };
   var OBJETS = { ecole: "l'école", compte: 'compte', annee: 'année scolaire', niveau: 'niveau', parametres: 'paramètres', licence: 'licence', paiement: 'paiement',
-    classe: 'classe', eleve: 'élève', frais: 'frais scolaires', personnel: 'personnel', matiere: 'matière', edt: 'emploi du temps', remise: 'remise' };
+    classe: 'classe', eleve: 'élève', frais: 'frais scolaires', personnel: 'personnel', matiere: 'matière', edt: 'emploi du temps', remise: 'remise', paie: 'paie' };
   var DOMAINES = { admin: 'Administration', pedagogie: 'Pédagogie', finance: 'Finances', plateforme: 'Plateforme' };
 
   function ref(c) { return 'loges_ecoles/' + S.sid + (c ? '/' + c : ''); }
   function droits() {
     var d = Object.assign({}, DROITS[S.membre.role] || DROITS.comptabilite);
     // Fondation : rapports financiers en lecture seulement si l'accès lui a été accordé
-    if (S.membre.role === 'fondation' && S.membre.accesFinances) d.finances = 'lire';
+    if (S.membre.role === 'fondation' && S.membre.accesFinances) { d.finances = 'lire'; d.paie = 'lire'; }
     return d;
   }
   function fmtD(v) { return fmtDate(v, (S && S.parametres && S.parametres.formatDate) || 'JJ/MM/AAAA'); }
@@ -1494,9 +1505,9 @@ var Ecole = (function () {
   ];
   // Ordre du menu propre à chaque espace (les modules de gestion s'enregistrent avec Ecole.page)
   var ORDRE = {
-    fondation: ['tableau-de-bord', 'classes', 'eleves', 'personnel', 'edt', 'paiements', 'rappels', 'annees', 'comptes', 'parametres', 'licence', 'journal'],
+    fondation: ['tableau-de-bord', 'classes', 'eleves', 'personnel', 'edt', 'paiements', 'rappels', 'salaires', 'annees', 'comptes', 'parametres', 'licence', 'journal'],
     direction: ['tableau-de-bord', 'classes', 'eleves', 'personnel', 'edt', 'matieres', 'annees', 'comptes', 'parametres', 'journal'],
-    comptabilite: ['tableau-de-bord', 'eleves', 'paiements', 'rappels', 'frais', 'classes', 'annees', 'parametres', 'licence', 'journal']
+    comptabilite: ['tableau-de-bord', 'eleves', 'paiements', 'rappels', 'frais', 'salaires', 'classes', 'annees', 'parametres', 'licence', 'journal']
   };
   function enregistrerPage(def) { PAGES = PAGES.filter(function (p) { return p.id !== def.id; }); PAGES.push(def); }
   function pagesDuMenu() {
@@ -1530,11 +1541,14 @@ var Ecole = (function () {
   var reglesAJour = null;
   function verifierRegles() {
     if (reglesAJour !== null) return Promise.resolve(reglesAJour);
-    return FE.lire('loges_platform/regles/v1_1').then(function () { reglesAJour = true; return true; }, function (e) {
-      reglesAJour = e.code !== 'permission'; return reglesAJour;
+    return FE.lire('loges_platform/regles/v1_3').then(function () { reglesAJour = true; return true; }, function (e) {
+      reglesAJour = e.code !== 'permission';
+      // Toute opération refusée affichera alors la vraie cause au lieu d'un message général
+      if (!reglesAJour) window.LOGES_REGLES_ANCIENNES = true;
+      return reglesAJour;
     });
   }
-  var ALERTE_REGLES = '<div class="alerte ko"><b>Mise à jour de la base nécessaire.</b> La base de données utilise encore les règles de sécurité de la version précédente : les inscriptions, paiements, classes, personnel et emplois du temps seront refusés. Le concepteur doit publier le fichier <b>database.rules.json</b> de cette version (console Firebase → Realtime Database → Règles).</div>';
+  var ALERTE_REGLES = '<div class="alerte ko"><b>Mise à jour de la base nécessaire.</b> La base de données utilise encore les règles de sécurité de la version précédente : les classes, le personnel, les élèves, les paiements, les salaires et les emplois du temps seront refusés. Le concepteur doit publier le fichier <b>database.rules.json</b> de cette version (console Firebase → Realtime Database → Règles).</div>';
   function entrer() {
     montrer('ecran-app');
     inactivite();
@@ -1867,7 +1881,7 @@ var Ecole = (function () {
       mm = mm || {};
       var liste = Object.keys(mm).filter(function (k) { return mm[k].statut !== 'remplace'; }).map(function (k) { var m = mm[k]; m.uid = k; return m; })
         .sort(function (a, b) { return (b.proprietaire ? 1 : 0) - (a.proprietaire ? 1 : 0) || (a.creeLe || 0) - (b.creeLe || 0); });
-      z.innerHTML = '<div class="tete-page"><div><h1>Comptes utilisateurs</h1><p class="sous-titre">Chaque personne a son propre compte. Ses droits dépendent de son rôle : Fondation, Direction ou Comptabilité.' + (gerer ? '' : ' Consultation seule.') + '</p></div>' +
+      z.innerHTML = '<div class="tete-page"><div><h1>Comptes utilisateurs</h1><p class="sous-titre">Comptes de connexion à LOGES : Fondation, Direction ou Comptabilité. Le maître, la maîtresse, le vigile, le gardien et tout le personnel s\'enregistrent dans « <a href="#/personnel">Personnel</a> », avec photo et salaire, sans compte de connexion.' + (gerer ? '' : ' Consultation seule.') + '</p></div>' +
         (gerer ? '<button class="bt p" id="btn-compte">+ Créer un compte</button>' : '') + '</div>' +
         '<div class="tab-w"><table class="tb"><thead><tr><th>Nom</th><th>Rôle</th><th>État</th><th>Dernière connexion</th>' + (gerer ? '<th></th>' : '') + '</tr></thead><tbody>' +
         liste.map(function (m) {
@@ -2467,10 +2481,10 @@ var G = (function () {
   /* ---------------- Personnel ---------------- */
   var CATEGORIES = { direction: 'Direction', enseignant: 'Enseignants', administratif: 'Administration', service: 'Personnel de service' };
   var FONCTIONS = {
-    direction: ['Directeur', 'Directrice', 'Directeur adjoint', 'Directeur des études', 'Surveillant général'],
-    enseignant: ['Enseignant titulaire', 'Enseignante titulaire', 'Éducatrice de maternelle', 'Enseignant d\'arabe', 'Enseignant d\'anglais', 'Enseignant d\'EPS', 'Enseignant suppléant'],
-    administratif: ['Comptable', 'Caissier', 'Secrétaire', 'Bibliothécaire', 'Surveillant'],
-    service: ['Gardien', 'Agent d\'entretien', 'Cuisinier', 'Chauffeur', 'Agent de sécurité', 'Jardinier']
+    direction: ['Directeur', 'Directrice', 'Directeur adjoint', 'Directrice adjointe', 'Directeur des études', 'Surveillant général'],
+    enseignant: ['Maître', 'Maîtresse', 'Éducatrice de maternelle', 'Enseignant titulaire', 'Enseignante titulaire', 'Maître d\'arabe', 'Professeur d\'anglais', 'Maître d\'EPS', 'Enseignant suppléant', 'Enseignant vacataire'],
+    administratif: ['Comptable', 'Caissier', 'Caissière', 'Secrétaire', 'Bibliothécaire', 'Surveillant'],
+    service: ['Gardien', 'Vigile', 'Agent de sécurité', 'Agent d\'entretien', 'Cuisinier', 'Cuisinière', 'Chauffeur', 'Jardinier', 'Planton']
   };
   // Nom du titulaire d'une classe : fiche du personnel si elle est lisible, sinon le nom recopié sur la classe
   function nomTitulaire(d, c) {
@@ -2481,6 +2495,34 @@ var G = (function () {
   function enseignants(d, avecPartis) {
     return liste(d.personnel).filter(function (p) { return p.categorie === 'enseignant' && (avecPartis || p.statut !== 'parti'); }).sort(trierParNom);
   }
+
+  function libMois(m) { var p = String(m || '').split('-'); return p.length === 2 ? MOIS[Number(p[1]) - 1] + ' ' + p[0] : '—'; }
+  function moisCourant() { return aujourdhui().slice(0, 7); }
+  function finDuMois(m) { var p = m.split('-').map(Number); return finDeMois(p[0], p[1] - 1); }
+
+  /* ---------------- Photos (réduites avant envoi, stockées à part) ---------------- */
+  function champPhoto(pfx, url, libelle) {
+    return '<div class="photo-ch"><div class="photo-ap" id="' + pfx + '-ap">' + (url ? '<img src="' + esc(url) + '" alt="Photo">' : '<span>Pas de photo</span>') + '</div>' +
+      '<div><div class="lb" style="font-weight:700;font-size:14px">' + (libelle || 'Photo') + ' <span class="gris-t" style="font-weight:400">(facultatif)</span></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><label class="bt s pt" style="cursor:pointer">📷 Choisir une photo<input type="file" id="' + pfx + '-f" accept="image/*" class="sr"></label>' +
+      '<button type="button" class="bt g pt" id="' + pfx + '-x"' + (url ? '' : ' style="display:none"') + '>Retirer</button></div>' +
+      '<div class="gris-t" style="font-size:12.5px;margin-top:4px">Prise avec le téléphone ou choisie dans la galerie ; réduite automatiquement.</div></div></div>';
+  }
+  // Renvoie l'état de la photo : { change, valeur } (valeur null = photo retirée)
+  function brancherPhoto(pfx) {
+    var etat = { change: false, valeur: null };
+    $(pfx + '-f').onchange = function () {
+      var f = this.files[0]; if (!f) return;
+      redimImage(f, 260, 0.8).then(function (u) {
+        if (u.length > 120000) throw new Error('Photo trop détaillée : choisissez-en une autre.');
+        etat.change = true; etat.valeur = u;
+        $(pfx + '-ap').innerHTML = '<img src="' + u + '" alt="Photo">'; $(pfx + '-x').style.display = '';
+      }).catch(function (e) { toast(e.message, 'ko'); });
+    };
+    $(pfx + '-x').onclick = function () { etat.change = true; etat.valeur = null; $(pfx + '-ap').innerHTML = '<span>Pas de photo</span>'; this.style.display = 'none'; };
+    return etat;
+  }
+  function lirePhoto(type, id) { return FE.lire(ref('photos/' + type + '/' + id)).catch(function () { return null; }); }
 
   /* ---------------- Écran ---------------- */
   function vide(texte, bouton) { return '<div class="vide">' + texte + (bouton ? '<div style="margin-top:12px">' + bouton + '</div>' : '') + '</div>'; }
@@ -2493,7 +2535,8 @@ var G = (function () {
     charger: charger, classesAnnee: classesAnnee, nomClasse: nomClasse, niveauClasse: niveauClasse, inscrits: inscrits, compterSexes: compterSexes, selClasses: selClasses,
     grille: grille, duEleve: duEleve, versementsEleve: versementsEleve, situation: situation, ETATS_TRANCHE: ETATS_TRANCHE, tranchesTriees: tranchesTriees,
     compteur: compteur, numeroRecu: numeroRecu, matricule: matricule, echeancier: echeancier,
-    CATEGORIES: CATEGORIES, FONCTIONS: FONCTIONS, enseignants: enseignants, nomTitulaire: nomTitulaire, vide: vide, lienWaParent: lienWaParent
+    CATEGORIES: CATEGORIES, FONCTIONS: FONCTIONS, enseignants: enseignants, nomTitulaire: nomTitulaire,
+    libMois: libMois, moisCourant: moisCourant, finDuMois: finDuMois, champPhoto: champPhoto, brancherPhoto: brancherPhoto, lirePhoto: lirePhoto, vide: vide, lienWaParent: lienWaParent
   };
 })();
 
@@ -2547,7 +2590,7 @@ var Scolarite = (function () {
               '<td class="n fort">' + ef.length + '</td><td class="n">' + s2.g + '</td><td class="n">' + s2.f + '</td><td class="n">' + (c.capacite ? c.capacite + (ef.length >= c.capacite ? ' <span class="pastille rouge">complète</span>' : '') : '—') + '</td>' +
               '<td><div style="display:flex;gap:4px;justify-content:flex-end">' + (gerer ? '<button class="bt g pt" data-modifier="' + c.id + '">Modifier</button>' : '') + '<button class="bt s pt" data-imprimer="' + c.id + '">🖨 Liste</button></div></td></tr>';
           }).join('') + '</tbody></table></div>'
-        : G.vide('Aucune classe pour l\'année ' + esc(d.annee.libelle) + '.' + (gerer ? '' : ' La Direction doit créer les classes avant les inscriptions.'),
+        : G.vide('Aucune classe pour l\'année ' + esc(d.annee.libelle) + '.' + (gerer ? '' : ' La Fondation ou la Direction doit créer les classes avant les inscriptions.'),
           gerer && niv.length ? '<button class="bt p" id="cl-auto">Créer une classe par niveau (' + niv.length + ')</button>' : ''));
       G.brancherAnnee(z);
       z.onclick = function (ev) {
@@ -2667,7 +2710,7 @@ var Scolarite = (function () {
       var nouveaux = actifs.filter(function (e) { return e.ins.type === 'inscription'; }).length;
       z.innerHTML = tete(gerer ? 'Élèves et inscriptions' : 'Élèves', 'Année ' + esc(d.annee.libelle) + '. Touchez un élève pour ouvrir sa fiche.',
         G.selAnnee(d.annees, d.aid) + (gerer ? '<button class="bt p" id="el-ins">+ Inscrire un élève</button>' : '')) +
-        (gerer && !cl.length ? '<div class="alerte att"><b>Aucune classe ouverte pour ' + esc(d.annee.libelle) + '.</b> Les inscriptions se font dans une classe : la Direction doit d\'abord créer les classes de l\'année (menu « Classes et listes »).</div>' : '') +
+        (gerer && !cl.length ? '<div class="alerte att"><b>Aucune classe ouverte pour ' + esc(d.annee.libelle) + '.</b> Les inscriptions se font dans une classe : la Fondation ou la Direction doit d\'abord créer les classes de l\'année (menu « Classes et listes »).</div>' : '') +
         '<div class="grille"><div class="tuile mini bleu"><div class="l">Élèves inscrits</div><div class="v">' + actifs.length + '</div><div class="d">' + sx.g + ' garçon(s), ' + sx.f + ' fille(s)</div></div>' +
         '<div class="tuile mini vert"><div class="l">Nouvelles inscriptions</div><div class="v">' + nouveaux + '</div><div class="d">' + (actifs.length - nouveaux) + ' réinscription(s)</div></div>' +
         (fin ? '<div class="tuile mini jaune"><div class="l">Reste à recouvrer</div><div class="v">' + G.M(G.somme(actifs, function (e) { return sits[e.id].reste; })) + '</div></div><div class="tuile mini rouge"><div class="l">En retard aujourd\'hui</div><div class="v">' + actifs.filter(function (e) { return sits[e.id].retard > 0; }).length + ' élève(s)</div></div>' : '') + '</div>' +
@@ -2699,43 +2742,54 @@ var Scolarite = (function () {
   }
 
   /* ---- Formulaire d'identité (inscription et modification) ---- */
-  function champsIdentite(e) {
+  function champsIdentite(e, obligatoire) {
     e = e || {};
+    var et = obligatoire ? ' <span class="rouge-t">*</span>' : '';
     return '<div class="sec-form">Identité de l\'élève</div>' +
-      '<div class="g2"><div class="ch"><label class="lb" for="ie-nom">Nom</label><input class="in-c" id="ie-nom" maxlength="60" value="' + esc(e.nom || '') + '" style="text-transform:uppercase"></div>' +
-      '<div class="ch"><label class="lb" for="ie-pre">Prénom(s)</label><input class="in-c" id="ie-pre" maxlength="80" value="' + esc(e.prenom || '') + '"></div></div>' +
-      '<div class="g3"><div class="ch"><label class="lb" for="ie-sx">Sexe</label><select class="in-c" id="ie-sx"><option value="">—</option><option value="M"' + (e.sexe === 'M' ? ' selected' : '') + '>Masculin</option><option value="F"' + (e.sexe === 'F' ? ' selected' : '') + '>Féminin</option></select></div>' +
-      '<div class="ch"><label class="lb" for="ie-dn">Date de naissance</label><input class="in-c" id="ie-dn" type="date" value="' + esc(e.dateNaissance || '') + '"></div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="ie-nom">Nom' + et + '</label><input class="in-c" id="ie-nom" maxlength="60" value="' + esc(e.nom || '') + '" style="text-transform:uppercase"></div>' +
+      '<div class="ch"><label class="lb" for="ie-pre">Prénom(s)' + et + '</label><input class="in-c" id="ie-pre" maxlength="80" value="' + esc(e.prenom || '') + '"></div></div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="ie-sx">Sexe' + et + '</label><select class="in-c" id="ie-sx"><option value="">—</option><option value="M"' + (e.sexe === 'M' ? ' selected' : '') + '>Masculin</option><option value="F"' + (e.sexe === 'F' ? ' selected' : '') + '>Féminin</option></select></div>' +
+      '<div class="ch"><label class="lb" for="ie-dn">Date de naissance' + et + '</label><input class="in-c" id="ie-dn" type="date" value="' + esc(e.dateNaissance || '') + '"></div>' +
       '<div class="ch"><label class="lb" for="ie-ln">Lieu de naissance</label><input class="in-c" id="ie-ln" maxlength="80" value="' + esc(e.lieuNaissance || '') + '"></div></div>' +
       '<div class="ch"><label class="lb" for="ie-adr">Adresse (quartier)</label><input class="in-c" id="ie-adr" maxlength="200" value="' + esc(e.adresse || '') + '"></div>' +
-      '<div class="sec-form">Parent ou tuteur</div>' +
-      '<div class="g2"><div class="ch"><label class="lb" for="ie-pn">Nom du parent ou tuteur</label><input class="in-c" id="ie-pn" maxlength="120" value="' + esc(e.parentNom || '') + '"></div>' +
-      '<div class="ch"><label class="lb" for="ie-pl">Lien avec l\'élève</label><input class="in-c" id="ie-pl" maxlength="40" list="liste-liens" value="' + esc(e.parentLien || '') + '"><datalist id="liste-liens"><option value="Père"><option value="Mère"><option value="Tuteur"><option value="Tutrice"><option value="Oncle"><option value="Tante"><option value="Grand-parent"></datalist></div></div>' +
-      '<div class="g2"><div class="ch"><label class="lb" for="ie-pt">Téléphone</label><input class="in-c" id="ie-pt" type="tel" maxlength="20" value="' + esc(e.parentTel || '') + '" placeholder="+224 6XX XX XX XX"><div class="ai">Sert aux rappels de paiement par WhatsApp.</div></div>' +
+      '<div class="sec-form">Tuteur (responsable de l\'élève)</div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="ie-pn">Nom du tuteur' + et + '</label><input class="in-c" id="ie-pn" maxlength="120" value="' + esc(e.parentNom || '') + '"></div>' +
+      '<div class="ch"><label class="lb" for="ie-pl">Lien avec l\'élève</label><input class="in-c" id="ie-pl" maxlength="40" list="liste-liens" value="' + esc(e.parentLien || '') + '" placeholder="Père, mère, oncle, tuteur…"><datalist id="liste-liens"><option value="Père"><option value="Mère"><option value="Tuteur"><option value="Tutrice"><option value="Oncle"><option value="Tante"><option value="Grand-parent"><option value="Frère"><option value="Sœur"></datalist></div></div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="ie-pt">Téléphone du tuteur' + et + '</label><input class="in-c" id="ie-pt" type="tel" maxlength="20" value="' + esc(e.parentTel || '') + '" placeholder="+224 6XX XX XX XX"><div class="ai">Sert aux rappels de paiement par WhatsApp.</div></div>' +
       '<div class="ch"><label class="lb" for="ie-pt2">Deuxième téléphone</label><input class="in-c" id="ie-pt2" type="tel" maxlength="20" value="' + esc(e.parentTel2 || '') + '"></div></div>' +
+      '<div class="sec-form">Père et mère <span class="gris-t" style="font-weight:400">(facultatif)</span></div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="ie-pe">Nom du père</label><input class="in-c" id="ie-pe" maxlength="120" value="' + esc(e.pereNom || '') + '"></div><div class="ch"><label class="lb" for="ie-pet">Téléphone du père</label><input class="in-c" id="ie-pet" type="tel" maxlength="20" value="' + esc(e.pereTel || '') + '"></div></div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="ie-me">Nom de la mère</label><input class="in-c" id="ie-me" maxlength="120" value="' + esc(e.mereNom || '') + '"></div><div class="ch"><label class="lb" for="ie-met">Téléphone de la mère</label><input class="in-c" id="ie-met" type="tel" maxlength="20" value="' + esc(e.mereTel || '') + '"></div></div>' +
       '<div class="ch"><label class="lb" for="ie-obs">Observations</label><input class="in-c" id="ie-obs" maxlength="500" value="' + esc(e.observations || '') + '" placeholder="Santé, allergies, personne à prévenir…"></div>';
   }
-  function lireIdentite() {
+  // obligatoire : à l'inscription, la date de naissance et le tuteur (nom et téléphone) sont exigés
+  function lireIdentite(obligatoire) {
     var v = { nom: $('ie-nom').value.trim().toUpperCase(), prenom: $('ie-pre').value.trim(), sexe: $('ie-sx').value, dateNaissance: $('ie-dn').value, lieuNaissance: $('ie-ln').value.trim(),
-      adresse: $('ie-adr').value.trim(), parentNom: $('ie-pn').value.trim(), parentLien: $('ie-pl').value.trim(), parentTel: $('ie-pt').value.trim(), parentTel2: $('ie-pt2').value.trim(), observations: $('ie-obs').value.trim() };
+      adresse: $('ie-adr').value.trim(), parentNom: $('ie-pn').value.trim(), parentLien: $('ie-pl').value.trim(), parentTel: $('ie-pt').value.trim(), parentTel2: $('ie-pt2').value.trim(),
+      pereNom: $('ie-pe').value.trim(), pereTel: $('ie-pet').value.trim(), mereNom: $('ie-me').value.trim(), mereTel: $('ie-met').value.trim(), observations: $('ie-obs').value.trim() };
+    var tel = function (t) { return t && !RE_TEL.test(t); };
     var pb = !v.nom ? 'Indiquez le nom de l\'élève.' : !v.prenom ? 'Indiquez le(s) prénom(s).' : !v.sexe ? 'Indiquez le sexe.' :
+      (obligatoire && !v.dateNaissance) ? 'Indiquez la date de naissance.' :
       (v.dateNaissance && v.dateNaissance > G.aujourdhui()) ? 'La date de naissance est dans le futur.' :
-      (v.parentTel && !RE_TEL.test(v.parentTel)) ? 'Téléphone du parent invalide.' : (v.parentTel2 && !RE_TEL.test(v.parentTel2)) ? 'Deuxième téléphone invalide.' : null;
+      (obligatoire && !v.parentNom) ? 'Indiquez le nom du tuteur.' : (obligatoire && !v.parentTel) ? 'Indiquez le téléphone du tuteur.' :
+      tel(v.parentTel) ? 'Téléphone du tuteur invalide.' : tel(v.parentTel2) ? 'Deuxième téléphone invalide.' : tel(v.pereTel) ? 'Téléphone du père invalide.' : tel(v.mereTel) ? 'Téléphone de la mère invalide.' : null;
     return { v: v, pb: pb };
   }
 
   /* ---- Inscription / réinscription ---- */
   function inscrire(d, classePre) {
     var cl = G.classesAnnee(d);
-    if (!cl.length) return toast('Aucune classe ouverte pour ' + d.annee.libelle + ' : la Direction doit créer les classes.', 'ko');
+    if (!cl.length) return toast('Aucune classe ouverte pour ' + d.annee.libelle + ' : la Fondation ou la Direction doit créer les classes.', 'ko');
     var anciens = G.liste(d.eleves).filter(function (e) { return !d.inscriptions[e.id]; }).sort(G.trierParNom);
     var choisi = null; // élève existant (réinscription)
+    var photo = { etat: { change: false } };
     var opts = cl.map(function (c) { var n = G.inscrits(d, c.id).length; return '<option value="' + c.id + '"' + (c.id === classePre ? ' selected' : '') + '>' + esc(c.nom) + ' — ' + n + (c.capacite ? '/' + c.capacite : '') + ' élève(s)</option>'; }).join('');
     modal({ titre: 'Inscrire un élève — ' + d.annee.libelle, large: true, corps:
       '<div class="ch" style="display:flex;gap:16px;flex-wrap:wrap"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="radio" name="in-t" value="nouveau" checked style="width:18px;height:18px"> Nouvel élève</label>' +
         '<label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="radio" name="in-t" value="ancien" style="width:18px;height:18px"' + (anciens.length ? '' : ' disabled') + '> Ancien élève (réinscription)' + (anciens.length ? '' : ' <span class="gris-t" style="font-weight:400">— aucun</span>') + '</label></div>' +
       '<div id="in-anc" style="display:none" class="ch"><input class="in-c" id="in-anc-q" type="search" placeholder="Rechercher l\'ancien élève (nom, matricule)…"><div class="choix-eleve" id="in-anc-l"></div></div>' +
-      '<div id="in-id">' + champsIdentite(null) + '</div>' +
+      '<div id="in-photo">' + G.champPhoto('ie-ph', null, 'Photo de l\'élève') + '</div>' +
+      '<div id="in-id">' + champsIdentite(null, true) + '</div>' +
       '<div class="sec-form">Inscription</div>' +
       '<div class="g3"><div class="ch"><label class="lb" for="in-cl">Classe</label><select class="in-c" id="in-cl">' + opts + '</select></div>' +
       '<div class="ch"><label class="lb" for="in-ty">Type</label><select class="in-c" id="in-ty"><option value="inscription">Inscription (nouvel élève)</option><option value="reinscription">Réinscription</option></select></div>' +
@@ -2748,7 +2802,7 @@ var Scolarite = (function () {
       '<div class="ch"><label class="lb" for="in-mo">Moyen</label><select class="in-c" id="in-mo">' + Object.keys(MOYENS).map(function (m) { return '<option value="' + m + '"' + (m === 'especes' ? ' selected' : '') + '>' + MOYENS[m] + '</option>'; }).join('') + '</select></div>' +
       '<div class="ch"><label class="lb" for="in-ref">Référence</label><input class="in-c" id="in-ref" maxlength="80" placeholder="N° de transaction"></div></div>' +
       '<div class="ch"><div class="er" id="in-e"></div></div>',
-      boutons: [{ txt: 'Annuler' }, { txt: 'Inscrire l\'élève', cls: 'p', action: function (fermer, bt) { enregistrerInscription(d, choisi, fermer, bt); } }],
+      boutons: [{ txt: 'Annuler' }, { txt: 'Inscrire l\'élève', cls: 'p', action: function (fermer, bt) { enregistrerInscription(d, choisi, fermer, bt, photo.etat); } }],
       auOuverture: function () {
         function majFrais() {
           var cid = $('in-cl').value, g = G.grille(d, cid), ty = $('in-ty').value;
@@ -2770,7 +2824,8 @@ var Scolarite = (function () {
             var anc = this.value === 'ancien';
             $('in-anc').style.display = anc ? '' : 'none';
             $('in-ty').value = anc ? 'reinscription' : 'inscription';
-            choisi = null; $('in-id').innerHTML = champsIdentite(null);
+            choisi = null; $('in-id').innerHTML = champsIdentite(null, true);
+            $('in-photo').innerHTML = G.champPhoto('ie-ph', null, 'Photo de l\'élève'); photo.etat = G.brancherPhoto('ie-ph');
             if (anc) { listeAnciens(); $('in-anc-q').focus(); }
             majFrais();
           };
@@ -2778,16 +2833,19 @@ var Scolarite = (function () {
         $('in-anc-q').oninput = listeAnciens;
         $('in-anc-l').onclick = function (ev) {
           var b = ev.target.closest('button[data-anc]'); if (!b) return;
-          choisi = b.dataset.anc; $('in-id').innerHTML = champsIdentite(d.eleves[choisi]); listeAnciens();
+          choisi = b.dataset.anc; $('in-id').innerHTML = champsIdentite(d.eleves[choisi], true); listeAnciens();
+          var pour = choisi;
+          G.lirePhoto('eleves', pour).then(function (u) { if (choisi !== pour || !$('in-photo')) return; $('in-photo').innerHTML = G.champPhoto('ie-ph', u, 'Photo de l\'élève'); photo.etat = G.brancherPhoto('ie-ph'); });
         };
         $('in-cl').onchange = majFrais; $('in-ty').onchange = majFrais;
+        photo.etat = G.brancherPhoto('ie-ph');
         majFrais();
         $('ie-nom').focus(); // immédiat : jamais de saut de curseur pendant la saisie
       } });
   }
 
-  function enregistrerInscription(d, choisi, fermer, bt) {
-    var r = lireIdentite(); erreurDans('in-e', '');
+  function enregistrerInscription(d, choisi, fermer, bt, etatPhoto) {
+    var r = lireIdentite(true); erreurDans('in-e', '');
     if (r.pb) return erreurDans('in-e', r.pb);
     var cid = $('in-cl').value, type = $('in-ty').value, date = $('in-dt').value, rem = Number($('in-rem').value) || 0, remm = $('in-remm').value.trim();
     var mt = Number($('in-mt').value) || 0, moyen = $('in-mo').value, refx = $('in-ref').value.trim();
@@ -2824,6 +2882,7 @@ var Scolarite = (function () {
         p[ref('eleves/' + eid)] = e;
       }
       p[ref('inscriptions/' + aid + '/' + eid)] = { classe: cid, type: type, date: date, statut: 'inscrit', t: FE.TS(), par: uid };
+      if (etatPhoto && etatPhoto.change) p[ref('photos/eleves/' + eid)] = etatPhoto.valeur;
       if (g) {
         var du = { fraisInscription: fi, scolarite: g.scolarite || 0, figeLe: now };
         if (g.tranches) du.tranches = g.tranches;
@@ -2875,13 +2934,16 @@ var Scolarite = (function () {
       }
       z.innerHTML = tete(esc(G.nomEleve(e)), 'Matricule <b>' + esc(e.matricule) + '</b>' + (c ? ' — ' + esc(c.nom) + ' — ' + esc(d.annee.libelle) : ' — non inscrit en ' + esc(d.annee ? d.annee.libelle : '')) + (ins ? ' — ' + pastilleStatut(ins.statut) : ''), actions, ['#/eleves', 'Élèves']) +
         (ins && ins.statut !== 'inscrit' ? '<div class="alerte att">Sortie le ' + G.D(ins.dateSortie) + (ins.motifSortie ? ' — ' + esc(ins.motifSortie) : '') + '.</div>' : '') +
-        '<div class="g2"><div class="carte"><h2>Identité</h2><table class="tb fiche" style="min-width:0"><tr><td>Nom</td><td><b>' + esc(e.nom) + '</b></td></tr><tr><td>Prénom(s)</td><td><b>' + esc(e.prenom) + '</b></td></tr><tr><td>Sexe</td><td>' + (e.sexe === 'F' ? 'Féminin' : 'Masculin') + '</td></tr>' +
+        '<div class="g2"><div class="carte"><div style="display:flex;gap:14px;align-items:flex-start;justify-content:space-between"><h2>Identité</h2><div id="fe-photo"></div></div><table class="tb fiche" style="min-width:0"><tr><td>Nom</td><td><b>' + esc(e.nom) + '</b></td></tr><tr><td>Prénom(s)</td><td><b>' + esc(e.prenom) + '</b></td></tr><tr><td>Sexe</td><td>' + (e.sexe === 'F' ? 'Féminin' : 'Masculin') + '</td></tr>' +
           '<tr><td>Né(e) le</td><td>' + G.D(e.dateNaissance) + (e.lieuNaissance ? ' à ' + esc(e.lieuNaissance) : '') + '</td></tr><tr><td>Adresse</td><td>' + esc(e.adresse || '—') + '</td></tr>' + (e.observations ? '<tr><td>Observations</td><td>' + esc(e.observations) + '</td></tr>' : '') + '</table></div>' +
-        '<div class="carte"><h2>Parent ou tuteur</h2><table class="tb fiche" style="min-width:0"><tr><td>Nom</td><td><b>' + esc(e.parentNom || '—') + '</b>' + (e.parentLien ? ' (' + esc(e.parentLien) + ')' : '') + '</td></tr>' +
-          '<tr><td>Téléphone</td><td>' + (e.parentTel ? esc(e.parentTel) + ' <a href="' + lienWa(e.parentTel) + '" target="_blank" rel="noopener" style="font-weight:700">WhatsApp</a>' : '—') + '</td></tr>' + (e.parentTel2 ? '<tr><td>2e téléphone</td><td>' + esc(e.parentTel2) + '</td></tr>' : '') + '</table>' +
+        '<div class="carte"><h2>Tuteur et parents</h2><table class="tb fiche" style="min-width:0"><tr><td>Tuteur</td><td><b>' + esc(e.parentNom || '—') + '</b>' + (e.parentLien ? ' (' + esc(e.parentLien) + ')' : '') + '</td></tr>' +
+          '<tr><td>Téléphone</td><td>' + (e.parentTel ? esc(e.parentTel) + ' <a href="' + lienWa(e.parentTel) + '" target="_blank" rel="noopener" style="font-weight:700">WhatsApp</a>' : '—') + '</td></tr>' + (e.parentTel2 ? '<tr><td>2e téléphone</td><td>' + esc(e.parentTel2) + '</td></tr>' : '') +
+          (e.pereNom || e.pereTel ? '<tr><td>Père</td><td>' + esc(e.pereNom || '—') + (e.pereTel ? ' — ' + esc(e.pereTel) : '') + '</td></tr>' : '') +
+          (e.mereNom || e.mereTel ? '<tr><td>Mère</td><td>' + esc(e.mereNom || '—') + (e.mereTel ? ' — ' + esc(e.mereTel) : '') + '</td></tr>' : '') + '</table>' +
           '<h2 style="margin-top:14px">Scolarité</h2><table class="tb fiche" style="min-width:0">' + (ins ? '<tr><td>Classe</td><td><a href="#/classe?id=' + ins.classe + '"><b>' + esc(G.nomClasse(d, ins.classe)) + '</b></a></td></tr><tr><td>Type</td><td>' + (ins.type === 'reinscription' ? 'Réinscription' : 'Inscription') + ' du ' + G.D(ins.date) + '</td></tr>' : '') +
           '<tr><td>Parcours</td><td>' + (hist.length ? hist.join('<br>') : '—') + '</td></tr></table></div></div>' +
         (s ? blocFinances(d, eid, s, gerer) : '');
+      G.lirePhoto('eleves', eid).then(function (u) { var c2 = z.querySelector('#fe-photo'); if (c2 && u) c2.innerHTML = '<img class="photo-fiche" src="' + esc(u) + '" alt="Photo de l\'élève">'; });
       brancherFiche(z, d, eid, e, ins, s);
     });
   }
@@ -2935,18 +2997,23 @@ var Scolarite = (function () {
   }
 
   function modifierEleve(d, eid, e) {
-    modal({ titre: 'Modifier la fiche — ' + G.nomEleve(e), large: true, corps: champsIdentite(e) + '<div class="ai">Matricule : ' + esc(e.matricule) + ' (non modifiable)</div><div class="ch"><div class="er" id="me-e"></div></div>',
-      boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer', cls: 'p', action: function (fermer, bt) {
-        var r = lireIdentite(); if (r.pb) return erreurDans('me-e', r.pb);
-        if (!A().exigerReseau()) return;
-        var p = {}, chg = [];
-        Object.keys(r.v).forEach(function (k) { if ((e[k] || '') !== r.v[k]) { chg.push(k); p[ref('eleves/' + eid + '/' + k)] = r.v[k] || null; } });
-        if (!chg.length) return fermer();
-        p[ref('eleves/' + eid + '/modifieLe')] = FE.maintenant(); p[ref('eleves/' + eid + '/modifiePar')] = S().uid;
-        Object.assign(p, A().entree('modification', 'eleve', G.nomEleve(e) + ' : ' + chg.length + ' champ(s) modifié(s)'));
-        occupe(bt, true);
-        FE.majGroupee(p).then(function () { fermer(); toast('Fiche enregistrée.', 'ok'); A().router(); }, function (er) { occupe(bt, false); erreurDans('me-e', Fb.message(er)); });
-      } }] });
+    G.lirePhoto('eleves', eid).then(function (url) {
+      var etatPhoto = { change: false };
+      modal({ titre: 'Modifier la fiche — ' + G.nomEleve(e), large: true, corps: G.champPhoto('ie-ph', url, 'Photo de l\'élève') + champsIdentite(e) + '<div class="ai">Matricule : ' + esc(e.matricule) + ' (non modifiable)</div><div class="ch"><div class="er" id="me-e"></div></div>',
+        auOuverture: function () { etatPhoto = G.brancherPhoto('ie-ph'); },
+        boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer', cls: 'p', action: function (fermer, bt) {
+          var r = lireIdentite(false); if (r.pb) return erreurDans('me-e', r.pb);
+          if (!A().exigerReseau()) return;
+          var p = {}, chg = [];
+          Object.keys(r.v).forEach(function (k) { if ((e[k] || '') !== r.v[k]) { chg.push(k); p[ref('eleves/' + eid + '/' + k)] = r.v[k] || null; } });
+          if (etatPhoto.change) { chg.push('photo'); p[ref('photos/eleves/' + eid)] = etatPhoto.valeur; }
+          if (!chg.length) return fermer();
+          p[ref('eleves/' + eid + '/modifieLe')] = FE.maintenant(); p[ref('eleves/' + eid + '/modifiePar')] = S().uid;
+          Object.assign(p, A().entree('modification', 'eleve', G.nomEleve(e) + ' : ' + chg.length + ' champ(s) modifié(s)'));
+          occupe(bt, true);
+          FE.majGroupee(p).then(function () { fermer(); toast('Fiche enregistrée.', 'ok'); A().router(); }, function (er) { occupe(bt, false); erreurDans('me-e', Fb.message(er)); });
+        } }] });
+    });
   }
 
   function changerClasse(d, eid, e, ins) {
@@ -2999,11 +3066,15 @@ var Scolarite = (function () {
   }
 
   function imprimerFiche(d, eid, s) {
+    G.lirePhoto('eleves', eid).then(function (u) { imprimerFicheAvecPhoto(d, eid, s, u); });
+  }
+  function imprimerFicheAvecPhoto(d, eid, s, photo) {
     var e = d.eleves[eid], ins = d.inscriptions[eid];
-    var corps = '<div class="ip-groupe">Identité de l\'élève</div>' + Impression.tableau([{ t: 'Rubrique', l: '55mm' }, { t: 'Renseignement' }], [
+    var corps = '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px"><div class="ip-groupe">Identité de l\'élève</div>' + (photo ? '<img src="' + esc(photo) + '" alt="" style="width:30mm;height:36mm;object-fit:cover;border:0.75pt solid #94a3b8;border-radius:3px;margin-bottom:4px">' : '') + '</div>' + Impression.tableau([{ t: 'Rubrique', l: '55mm' }, { t: 'Renseignement' }], [
       ['Matricule', '<b>' + esc(e.matricule) + '</b>'], ['Nom et prénoms', '<b>' + esc(G.nomEleve(e)) + '</b>'], ['Sexe', e.sexe === 'F' ? 'Féminin' : 'Masculin'],
       ['Date et lieu de naissance', G.D(e.dateNaissance) + (e.lieuNaissance ? ' à ' + esc(e.lieuNaissance) : '')], ['Adresse', esc(e.adresse || '—')],
-      ['Parent ou tuteur', esc(e.parentNom || '—') + (e.parentLien ? ' (' + esc(e.parentLien) + ')' : '')], ['Téléphone(s)', esc([e.parentTel, e.parentTel2].filter(Boolean).join(' / ') || '—')],
+      ['Tuteur', esc(e.parentNom || '—') + (e.parentLien ? ' (' + esc(e.parentLien) + ')' : '')], ['Téléphone(s) du tuteur', esc([e.parentTel, e.parentTel2].filter(Boolean).join(' / ') || '—')],
+      ['Père', esc([e.pereNom, e.pereTel].filter(Boolean).join(' — ') || '—')], ['Mère', esc([e.mereNom, e.mereTel].filter(Boolean).join(' — ') || '—')],
       ['Classe', esc(G.nomClasse(d, ins.classe)) + ' — année ' + esc(d.annee.libelle)], ['Inscription', (ins.type === 'reinscription' ? 'Réinscription' : 'Inscription') + ' du ' + G.D(ins.date)]].concat(e.observations ? [['Observations', esc(e.observations)]] : []));
     if (s) {
       corps += '<div class="ip-groupe">Situation financière au ' + G.D(G.aujourdhui()) + '</div>' +
@@ -3517,6 +3588,23 @@ var Direction = (function () {
   }
 
   /* ======================= PERSONNEL ======================= */
+  var cachePhotos = {};
+  function initiales(p) { return ((p.prenom || '').charAt(0) + (p.nom || '').charAt(0)).toUpperCase(); }
+  function texteSalaire(r) {
+    if (!r || !r.mode) return '';
+    if (r.mode === 'horaire') return G.M(r.taux || 0) + ' / h' + (r.heures ? ' × ' + r.heures + ' h' : '');
+    return G.M(r.salaire || 0) + ' / mois';
+  }
+  // Photos chargées après l'affichage de la liste (jamais dans la liste elle-même : écran rapide)
+  function chargerAvatars(zone) {
+    zone.querySelectorAll('[data-ph]').forEach(function (el) {
+      var pid = el.dataset.ph;
+      var poser = function (u) { if (u) el.innerHTML = '<img src="' + esc(u) + '" alt="">'; };
+      if (cachePhotos[pid] !== undefined) return poser(cachePhotos[pid]);
+      G.lirePhoto('personnel', pid).then(function (u) { cachePhotos[pid] = u || null; poser(u); });
+    });
+  }
+
   function pagePersonnel(z) {
     var gerer = dr().personnel === 'gerer';
     return Promise.all([G.charger(['niveaux', 'classes', 'personnel']), FE.lire(ref('membres')).catch(function () { return null; })]).then(function (x) {
@@ -3528,12 +3616,15 @@ var Direction = (function () {
       var aAjouter = Object.keys(membres).filter(function (u) { var m = membres[u]; return m.statut === 'actif' && m.role !== 'fondation' && !lies[u]; }).map(function (u) { var m = Object.assign({}, membres[u]); m.uid = u; return m; })
         .sort(function (a, b) { return (a.role === 'direction' ? 0 : 1) - (b.role === 'direction' ? 0 : 1); });
       var titulaires = {}; G.classesAnnee(d).forEach(function (c) { if (c.titulaire) (titulaires[c.titulaire] = titulaires[c.titulaire] || []).push(c.nom); });
-      var ens = actifs.filter(function (p) { return p.categorie === 'enseignant'; });
-      z.innerHTML = tete('Personnel de l\'école', 'Toutes les personnes qui travaillent à l\'école : direction, enseignants, administration et service, avec ou sans compte LOGES.' + (gerer ? '' : ' Consultation seule.'),
+      var sansSalaire = actifs.filter(function (p) { return !p.remuneration || !p.remuneration.mode; }).length;
+      var masse = G.somme(actifs, function (p) { var r = p.remuneration || {}; return r.mode === 'horaire' ? (r.taux || 0) * (r.heures || 0) : (r.salaire || 0); });
+      z.innerHTML = tete('Personnel de l\'école', 'Toutes les personnes qui travaillent à l\'école : direction, maîtres et maîtresses, administration, vigiles et gardiens… avec ou sans compte LOGES. Le salaire saisi ici apparaît automatiquement chez la Comptabilité.' + (gerer ? '' : ' Consultation seule.'),
         '<button class="bt s" id="pe-imp">🖨 Imprimer la liste</button>' + (gerer ? '<button class="bt p" id="pe-nouv">+ Ajouter un membre</button>' : '')) +
         (gerer && aAjouter.length ? '<div class="alerte info">Comptes LOGES pas encore inscrits dans la liste du personnel : ' + aAjouter.map(function (m) { return '<b>' + esc(m.nom) + '</b> (' + ROLES[m.role] + ') <button class="bt g pt" data-lier="' + m.uid + '">Ajouter</button>'; }).join(' · ') + '</div>' : '') +
+        (gerer && sansSalaire ? '<div class="alerte att">' + sansSalaire + ' membre(s) en poste sans salaire défini : ouvrez « Modifier » pour le saisir.</div>' : '') +
         '<div class="grille"><div class="tuile mini bleu"><div class="l">Personnel en poste</div><div class="v">' + actifs.length + '</div><div class="d">' + actifs.filter(function (p) { return p.sexe === 'M'; }).length + ' homme(s), ' + actifs.filter(function (p) { return p.sexe === 'F'; }).length + ' femme(s)</div></div>' +
-        ORDRE_CAT.map(function (c) { var n = actifs.filter(function (p) { return p.categorie === c; }).length; return '<div class="tuile mini ' + (c === 'enseignant' ? 'vert' : 'jaune') + '"><div class="l">' + G.CATEGORIES[c] + '</div><div class="v">' + n + '</div>' + (c === 'enseignant' ? '<div class="d">' + Object.keys(titulaires).length + ' titulaire(s) de classe</div>' : '') + '</div>'; }).join('') + '</div>' +
+        ORDRE_CAT.map(function (c) { var n = actifs.filter(function (p) { return p.categorie === c; }).length; return '<div class="tuile mini ' + (c === 'enseignant' ? 'vert' : 'jaune') + '"><div class="l">' + G.CATEGORIES[c] + '</div><div class="v">' + n + '</div>' + (c === 'enseignant' ? '<div class="d">' + Object.keys(titulaires).length + ' titulaire(s) de classe</div>' : '') + '</div>'; }).join('') +
+        '<div class="tuile mini bleu"><div class="l">Salaires prévus par mois</div><div class="v">' + G.M(masse) + '</div></div></div>' +
         '<div class="filtres"><input class="in-c" id="pe-q" type="search" placeholder="Rechercher : nom, fonction, téléphone…"><select class="in-c court" id="pe-c"><option value="">Toutes les catégories</option>' + ORDRE_CAT.map(function (c) { return '<option value="' + c + '">' + G.CATEGORIES[c] + '</option>'; }).join('') + '</select>' +
         '<label class="gris-t" style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="pe-p"> afficher les départs</label></div><div id="pe-l"></div>';
       function filtrer() {
@@ -3544,14 +3635,16 @@ var Direction = (function () {
         var l = filtrer();
         $('pe-l').innerHTML = l.length ? ORDRE_CAT.filter(function (c) { return l.some(function (x) { return x.categorie === c; }); }).map(function (c) {
           var g = l.filter(function (x) { return x.categorie === c; });
-          return '<div class="carte" style="padding:14px 16px"><h2>' + G.CATEGORIES[c] + ' <span class="gris-t" style="font-weight:600">(' + g.length + ')</span></h2><div class="tab-w"><table class="tb"><thead><tr><th class="n">N°</th><th>Nom et prénoms</th><th>Fonction</th><th>Sexe</th><th>Téléphone</th><th>Diplôme / spécialité</th><th>Depuis le</th>' + (c === 'enseignant' ? '<th>Classe tenue</th>' : '') + '<th>État</th>' + (gerer ? '<th></th>' : '') + '</tr></thead><tbody>' +
+          return '<div class="carte" style="padding:14px 16px"><h2>' + G.CATEGORIES[c] + ' <span class="gris-t" style="font-weight:600">(' + g.length + ')</span></h2><div class="tab-w"><table class="tb"><thead><tr><th class="n">N°</th><th>Nom et prénoms</th><th>Fonction</th><th>Téléphone</th><th>Salaire</th>' + (c === 'enseignant' ? '<th>Classe tenue</th>' : '') + '<th>État</th>' + (gerer ? '<th></th>' : '') + '</tr></thead><tbody>' +
             g.map(function (p, i) {
-              return '<tr><td class="n">' + (i + 1) + '</td><td><b>' + esc(G.nomPers(p)) + '</b>' + (p.membre && membres[compteActuel(membres, p.membre)] ? '<div class="gris-t" style="font-size:12px">compte LOGES : ' + esc(membres[compteActuel(membres, p.membre)].username) + '</div>' : '') + '</td><td>' + esc(p.fonction) + '</td><td>' + esc(p.sexe) + '</td><td>' + esc(p.tel || '—') + '</td>' +
-                '<td>' + esc([p.diplome, p.specialite].filter(Boolean).join(' — ') || '—') + '</td><td>' + G.D(p.dateEmbauche) + '</td>' + (c === 'enseignant' ? '<td>' + esc((titulaires[p.id] || []).join(', ') || '—') + '</td>' : '') +
+              var cpt = p.membre && membres[compteActuel(membres, p.membre)];
+              return '<tr><td class="n">' + (i + 1) + '</td><td style="min-width:190px"><div style="display:flex;gap:10px;align-items:center"><span class="avatar" data-ph="' + p.id + '">' + esc(initiales(p)) + '</span><div><b>' + esc(G.nomPers(p)) + '</b>' + (cpt ? '<div class="gris-t" style="font-size:12px">compte LOGES : ' + esc(cpt.username) + '</div>' : '') + '</div></div></td><td>' + esc(p.fonction) + '</td><td style="white-space:nowrap">' + esc(p.tel || '—') + '</td>' +
+                '<td>' + (texteSalaire(p.remuneration) ? esc(texteSalaire(p.remuneration)) : '<span class="pastille ambre">Non défini</span>') + '</td>' + (c === 'enseignant' ? '<td>' + esc((titulaires[p.id] || []).join(', ') || '—') + '</td>' : '') +
                 '<td>' + (p.statut === 'parti' ? '<span class="pastille gris">Parti' + (p.dateDepart ? ' le ' + G.D(p.dateDepart) : '') + '</span>' : '<span class="pastille vert">En poste</span>') + '</td>' +
-                (gerer ? '<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="bt g pt" data-mod="' + p.id + '">Modifier</button>' + (p.statut === 'parti' ? '<button class="bt g pt" data-retour="' + p.id + '">Réintégrer</button>' : '<button class="bt g pt" data-depart="' + p.id + '">Départ</button>') + '</div></td>' : '') + '</tr>';
+                (gerer ? '<td><div style="display:flex;flex-wrap:wrap;gap:2px 4px;justify-content:flex-end;max-width:175px;margin-left:auto"><button class="bt g pt" data-mod="' + p.id + '">Modifier</button>' + (p.statut === 'parti' ? '<button class="bt g pt" data-retour="' + p.id + '">Réintégrer</button>' : '<button class="bt g pt" data-depart="' + p.id + '">Départ</button>') + '<button class="bt g pt" data-suppr="' + p.id + '" style="color:#b91c1c">Supprimer</button></div></td>' : '') + '</tr>';
             }).join('') + '</tbody></table></div></div>';
         }).join('') : G.vide(tous.length ? 'Aucun membre ne correspond à la recherche.' : 'Aucun membre du personnel enregistré.', gerer && !tous.length ? '<button class="bt p" onclick="document.getElementById(\'pe-nouv\').click()">+ Ajouter le premier membre</button>' : '');
+        chargerAvatars($('pe-l'));
       }
       rendre();
       $('pe-q').oninput = rendre; $('pe-c').onchange = rendre; $('pe-p').onchange = rendre;
@@ -3565,9 +3658,10 @@ var Direction = (function () {
           var m = membres[b.dataset.lier], mots = String(m.nom).trim().split(/\s+/);
           formulairePersonnel({ prenom: mots.length > 1 ? mots.slice(0, -1).join(' ') : m.nom, nom: mots.length > 1 ? mots[mots.length - 1] : '', categorie: m.role === 'direction' ? 'direction' : 'administratif',
             fonction: m.role === 'direction' ? 'Directeur' : 'Comptable', tel: m.tel || '', email: m.email || '', membre: b.dataset.lier, statut: 'actif' }, null, membres, d);
-        } else if (b.dataset.depart) {
+        } else if (b.dataset.suppr) supprimerPersonnel(d, b.dataset.suppr);
+        else if (b.dataset.depart) {
           var p = d.personnel[b.dataset.depart];
-          modal({ titre: 'Départ — ' + G.nomPers(p), corps: '<div class="ch"><label class="lb" for="dp-d">Date du départ</label><input class="in-c" type="date" id="dp-d" value="' + G.aujourdhui() + '"></div><div class="ch"><label class="lb" for="dp-m">Observations</label><input class="in-c" id="dp-m" maxlength="300" value="' + esc(p.observations || '') + '"></div><p class="gris-t" style="font-size:13px">La fiche est conservée et la personne n\'apparaît plus dans la liste du personnel en poste.</p>',
+          modal({ titre: 'Départ — ' + G.nomPers(p), corps: '<div class="ch"><label class="lb" for="dp-d">Date du départ</label><input class="in-c" type="date" id="dp-d" value="' + G.aujourdhui() + '"></div><div class="ch"><label class="lb" for="dp-m">Observations</label><input class="in-c" id="dp-m" maxlength="300" value="' + esc(p.observations || '') + '"></div><p class="gris-t" style="font-size:13px">La fiche est conservée et la personne n\'apparaît plus dans la liste du personnel en poste ni dans la paie des mois suivants.</p>',
             boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer le départ', cls: 'd', action: function (fermer, bt) {
               if (!A().exigerReseau()) return;
               var q = {}, k = 'personnel/' + b.dataset.depart + '/';
@@ -3586,42 +3680,105 @@ var Direction = (function () {
     });
   }
 
+  // Suppression définitive d'un membre du personnel (sa fiche et sa photo).
+  // Les versements de salaire déjà faits restent dans l'historique de la Comptabilité (le nom y est recopié).
+  function supprimerPersonnel(d, pid) {
+    var p = d.personnel[pid], tit = G.liste(d.classes).filter(function (c) { return c.titulaire === pid; });
+    var estDirection = S().membre.role === 'direction';
+    (estDirection ? FE.lire(ref('edt')).catch(function () { return null; }) : Promise.resolve(null)).then(function (edt) {
+      var cases = [];
+      Object.keys(edt || {}).forEach(function (aid) { var cc = (edt[aid] && edt[aid].cases) || {}; Object.keys(cc).forEach(function (cid) { Object.keys(cc[cid]).forEach(function (k) { if (cc[cid][k].enseignant === pid) cases.push([aid, cid, k]); }); }); });
+      var effets = [];
+      if (tit.length) effets.push('La classe ' + tit.map(function (c) { return '<b>' + esc(c.nom) + '</b>'; }).join(', ') + ' n\'aura plus de titulaire.');
+      if (cases.length) effets.push('Ses ' + cases.length + ' créneau(x) d\'emploi du temps restent avec la matière, sans enseignant.');
+      modal({ titre: 'Supprimer ' + G.nomPers(p), corps: '<p style="line-height:1.6">La fiche de <b>' + esc(G.nomPers(p)) + '</b> (' + esc(p.fonction) + ') et sa photo seront <b>supprimées définitivement</b>.</p>' +
+        (effets.length ? '<ul style="margin:10px 0 0 18px;line-height:1.6">' + effets.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' : '') +
+        '<p class="gris-t" style="font-size:13px;margin-top:10px">Les salaires déjà versés restent dans l\'historique de la Comptabilité. Pour garder la fiche sans la compter dans le personnel en poste, utilisez plutôt « Départ ».</p>',
+        boutons: [{ txt: 'Annuler' }, { txt: 'Supprimer définitivement', cls: 'd', action: function (fermer, bt) {
+          if (!A().exigerReseau()) return;
+          var q = {};
+          q[ref('personnel/' + pid)] = null;
+          q[ref('photos/personnel/' + pid)] = null;
+          tit.forEach(function (c) { q[ref('classes/' + c.id + '/titulaire')] = null; q[ref('classes/' + c.id + '/titulaireNom')] = null; });
+          cases.forEach(function (x) { q[ref('edt/' + x[0] + '/cases/' + x[1] + '/' + x[2] + '/enseignant')] = null; });
+          Object.assign(q, A().entree('suppression', 'personnel', G.nomPers(p) + ' (' + p.fonction + ')'));
+          occupe(bt, true);
+          FE.majGroupee(q).then(function () { fermer(); delete cachePhotos[pid]; toast('Membre supprimé.', 'ok'); A().router(); }, function (e) { occupe(bt, false); toast(Fb.message(e), 'ko'); });
+        } }] });
+    });
+  }
+
   function formulairePersonnel(p, pid, membres, d) {
     p = p || {}; membres = membres || {};
-    var cat = p.categorie || 'enseignant';
-    function opts(c) { return (G.FONCTIONS[c] || []).map(function (f) { return '<option value="' + esc(f) + '">'; }).join(''); }
+    (pid ? G.lirePhoto('personnel', pid) : Promise.resolve(null)).then(function (photo) { ouvrirFormulairePersonnel(p, pid, membres, d, photo); });
+  }
+  function ouvrirFormulairePersonnel(p, pid, membres, d, photo) {
+    var cat = p.categorie || 'enseignant', r = p.remuneration || {}, mode = r.mode || (pid ? '' : 'mensuel');
+    function optionsFonction(c, val) {
+      var l = G.FONCTIONS[c] || [], autre = val && l.indexOf(val) < 0;
+      return '<option value="">— Choisir —</option>' + l.map(function (f) { return '<option' + (f === val ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') + '<option value="__autre"' + (autre ? ' selected' : '') + '>Autre fonction…</option>';
+    }
+    var fAutre = p.fonction && (G.FONCTIONS[cat] || []).indexOf(p.fonction) < 0;
+    var etatPhoto = { change: false }; // remplacé à l'ouverture de la fenêtre
     modal({ titre: pid ? 'Modifier — ' + G.nomPers(p) : 'Ajouter un membre du personnel', large: true, corps:
+      G.champPhoto('pf-ph', photo, 'Photo') +
       '<div class="g2"><div class="ch"><label class="lb" for="pf-nom">Nom</label><input class="in-c" id="pf-nom" maxlength="60" value="' + esc(p.nom || '') + '" style="text-transform:uppercase"></div><div class="ch"><label class="lb" for="pf-pre">Prénom(s)</label><input class="in-c" id="pf-pre" maxlength="80" value="' + esc(p.prenom || '') + '"></div></div>' +
       '<div class="g3"><div class="ch"><label class="lb" for="pf-sx">Sexe</label><select class="in-c" id="pf-sx"><option value="">—</option><option value="M"' + (p.sexe === 'M' ? ' selected' : '') + '>Homme</option><option value="F"' + (p.sexe === 'F' ? ' selected' : '') + '>Femme</option></select></div>' +
       '<div class="ch"><label class="lb" for="pf-cat">Catégorie</label><select class="in-c" id="pf-cat">' + ORDRE_CAT.map(function (c) { return '<option value="' + c + '"' + (c === cat ? ' selected' : '') + '>' + G.CATEGORIES[c] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="ch"><label class="lb" for="pf-fn">Fonction</label><input class="in-c" id="pf-fn" maxlength="60" list="liste-fonctions" value="' + esc(p.fonction || '') + '"><datalist id="liste-fonctions">' + opts(cat) + '</datalist></div></div>' +
+      '<div class="ch"><label class="lb" for="pf-fs">Fonction</label><select class="in-c" id="pf-fs">' + optionsFonction(cat, p.fonction) + '</select>' +
+        '<input class="in-c" id="pf-fn" maxlength="60" placeholder="Préciser la fonction" value="' + esc(fAutre ? p.fonction : '') + '" style="margin-top:6px' + (fAutre ? '' : ';display:none') + '"></div></div>' +
       '<div class="g3"><div class="ch"><label class="lb" for="pf-tel">Téléphone</label><input class="in-c" id="pf-tel" type="tel" maxlength="20" value="' + esc(p.tel || '') + '"></div><div class="ch"><label class="lb" for="pf-tel2">2e téléphone</label><input class="in-c" id="pf-tel2" type="tel" maxlength="20" value="' + esc(p.tel2 || '') + '"></div>' +
       '<div class="ch"><label class="lb" for="pf-em">E-mail</label><input class="in-c" id="pf-em" type="email" maxlength="120" value="' + esc(p.email || '') + '"></div></div>' +
       '<div class="g3"><div class="ch"><label class="lb" for="pf-dn">Date de naissance</label><input class="in-c" id="pf-dn" type="date" value="' + esc(p.dateNaissance || '') + '"></div><div class="ch"><label class="lb" for="pf-de">Date d\'embauche</label><input class="in-c" id="pf-de" type="date" value="' + esc(p.dateEmbauche || '') + '"></div>' +
       '<div class="ch"><label class="lb" for="pf-adr">Adresse</label><input class="in-c" id="pf-adr" maxlength="200" value="' + esc(p.adresse || '') + '"></div></div>' +
       '<div class="g2"><div class="ch"><label class="lb" for="pf-dip">Diplôme</label><input class="in-c" id="pf-dip" maxlength="120" value="' + esc(p.diplome || '') + '" placeholder="Ex. : ENI, licence, BEPC…"></div><div class="ch"><label class="lb" for="pf-sp">Spécialité / matières</label><input class="in-c" id="pf-sp" maxlength="120" value="' + esc(p.specialite || '') + '"></div></div>' +
+      '<div class="sec-form">Salaire</div><p class="aide-mdp">Il apparaît automatiquement dans l\'écran « Salaires » de la Comptabilité, qui gère les paiements, les bons de salaire et les bulletins de paie.</p>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="pf-mode">Rémunération</label><select class="in-c" id="pf-mode"><option value="">Non définie</option><option value="mensuel"' + (mode === 'mensuel' ? ' selected' : '') + '>Salaire mensuel fixe</option><option value="horaire"' + (mode === 'horaire' ? ' selected' : '') + '>À l\'heure (vacataire)</option></select></div>' +
+        '<div class="ch" id="pf-sal-ch"><label class="lb" for="pf-sal">Salaire mensuel (' + G.devise() + ')</label><input class="in-c" id="pf-sal" type="number" min="0" step="500" value="' + esc(r.salaire || '') + '"></div>' +
+        '<div class="ch" id="pf-taux-ch"><label class="lb" for="pf-taux">Taux horaire (' + G.devise() + ')</label><input class="in-c" id="pf-taux" type="number" min="0" step="100" value="' + esc(r.taux || '') + '"></div>' +
+        '<div class="ch" id="pf-h-ch"><label class="lb" for="pf-h">Heures par mois</label><input class="in-c" id="pf-h" type="number" min="0" max="400" value="' + esc(r.heures || '') + '"></div></div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="pf-moy">Payé par</label><select class="in-c" id="pf-moy">' + Object.keys(MOYENS).map(function (m) { return '<option value="' + m + '"' + ((r.moyen || 'especes') === m ? ' selected' : '') + '>' + MOYENS[m] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="ch"><label class="lb" for="pf-num">N° Orange Money / compte</label><input class="in-c" id="pf-num" maxlength="40" value="' + esc(r.numero || '') + '"></div>' +
+        '<div class="ch" style="display:flex;align-items:flex-end"><label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:12px"><input type="checkbox" id="pf-cnss" style="width:18px;height:18px"' + (r.cnss ? ' checked' : '') + '> Retenir la CNSS (5 %)</label></div></div>' +
+      '<div class="sec-form">Autres informations</div>' +
       '<div class="g2"><div class="ch"><label class="lb" for="pf-mb">Compte LOGES associé</label><select class="in-c" id="pf-mb"><option value="">Aucun</option>' + Object.keys(membres).filter(function (u) { return membres[u].statut === 'actif'; }).map(function (u) { return '<option value="' + u + '"' + (p.membre && compteActuel(membres, p.membre) === u ? ' selected' : '') + '>' + esc(membres[u].nom) + ' (' + ROLES[membres[u].role] + ')</option>'; }).join('') + '</select></div>' +
       '<div class="ch"><label class="lb" for="pf-obs">Observations</label><input class="in-c" id="pf-obs" maxlength="300" value="' + esc(p.observations || '') + '"></div></div><div class="ch"><div class="er" id="pf-e"></div></div>',
       boutons: [{ txt: 'Annuler' }, { txt: pid ? 'Enregistrer' : 'Ajouter', cls: 'p', action: function (fermer, bt) {
-        var v = { nom: $('pf-nom').value.trim().toUpperCase(), prenom: $('pf-pre').value.trim(), sexe: $('pf-sx').value, categorie: $('pf-cat').value, fonction: $('pf-fn').value.trim(),
+        var fs = $('pf-fs').value, fonction = fs === '__autre' ? $('pf-fn').value.trim() : fs;
+        var v = { nom: $('pf-nom').value.trim().toUpperCase(), prenom: $('pf-pre').value.trim(), sexe: $('pf-sx').value, categorie: $('pf-cat').value, fonction: fonction,
           tel: $('pf-tel').value.trim(), tel2: $('pf-tel2').value.trim(), email: $('pf-em').value.trim(), dateNaissance: $('pf-dn').value, dateEmbauche: $('pf-de').value, adresse: $('pf-adr').value.trim(),
           diplome: $('pf-dip').value.trim(), specialite: $('pf-sp').value.trim(), membre: $('pf-mb').value, observations: $('pf-obs').value.trim() };
-        var pb = !v.nom ? 'Indiquez le nom.' : !v.prenom ? 'Indiquez le(s) prénom(s).' : !v.sexe ? 'Indiquez le sexe.' : v.fonction.length < 2 ? 'Indiquez la fonction.' :
-          (v.tel && !RE_TEL.test(v.tel)) ? 'Téléphone invalide.' : (v.tel2 && !RE_TEL.test(v.tel2)) ? 'Deuxième téléphone invalide.' : (v.email && !RE_EMAIL.test(v.email)) ? 'E-mail invalide.' : null;
+        var md = $('pf-mode').value, sal = Math.round(Number($('pf-sal').value) || 0), taux = Math.round(Number($('pf-taux').value) || 0), h = Number($('pf-h').value) || 0;
+        var pb = !v.nom ? 'Indiquez le nom.' : !v.prenom ? 'Indiquez le(s) prénom(s).' : !v.sexe ? 'Indiquez le sexe.' : (v.fonction || '').length < 2 ? 'Choisissez ou précisez la fonction.' :
+          (v.tel && !RE_TEL.test(v.tel)) ? 'Téléphone invalide.' : (v.tel2 && !RE_TEL.test(v.tel2)) ? 'Deuxième téléphone invalide.' : (v.email && !RE_EMAIL.test(v.email)) ? 'E-mail invalide.' :
+          (md === 'mensuel' && !sal) ? 'Indiquez le salaire mensuel (ou choisissez « Non définie »).' : (md === 'horaire' && !taux) ? 'Indiquez le taux horaire.' : (h < 0 || h > 400) ? 'Heures par mois : entre 0 et 400.' : null;
         if (pb) return erreurDans('pf-e', pb);
         if (!A().exigerReseau()) return;
         var q = {}, k = pid || FE.cle();
         var obj = { statut: p.statut || 'actif', creeLe: p.creeLe || FE.maintenant(), creePar: p.creePar || S().uid };
         if (pid) { obj.modifieLe = FE.maintenant(); obj.modifiePar = S().uid; if (p.dateDepart) obj.dateDepart = p.dateDepart; }
         Object.keys(v).forEach(function (x) { if (v[x]) obj[x] = v[x]; });
+        if (md) {
+          var rem = { mode: md, cnss: $('pf-cnss').checked, moyen: $('pf-moy').value, majLe: FE.maintenant(), majPar: S().uid };
+          if (md === 'mensuel') rem.salaire = sal; else { rem.taux = taux; if (h) rem.heures = h; }
+          var num = $('pf-num').value.trim(); if (num) rem.numero = num;
+          obj.remuneration = rem;
+        }
         q[ref('personnel/' + k)] = obj;
+        if (etatPhoto.change) q[ref('photos/personnel/' + k)] = etatPhoto.valeur;
         // Le nom recopié sur les classes dont la personne est titulaire suit la fiche
         if (pid && d) G.liste(d.classes).forEach(function (c) { if (c.titulaire === pid && c.titulaireNom !== G.nomPers(obj)) q[ref('classes/' + c.id + '/titulaireNom')] = G.nomPers(obj); });
-        Object.assign(q, A().entree(pid ? 'modification' : 'creation', 'personnel', G.nomPers(obj) + ' — ' + obj.fonction));
+        Object.assign(q, A().entree(pid ? 'modification' : 'creation', 'personnel', G.nomPers(obj) + ' — ' + obj.fonction + (md ? ' — ' + texteSalaire(obj.remuneration) : '')));
         occupe(bt, true);
-        FE.majGroupee(q).then(function () { fermer(); toast(pid ? 'Fiche enregistrée.' : 'Membre ajouté au personnel.', 'ok'); A().router(); }, function (e) { occupe(bt, false); erreurDans('pf-e', Fb.message(e)); });
+        FE.majGroupee(q).then(function () { if (etatPhoto.change) cachePhotos[k] = etatPhoto.valeur; fermer(); toast(pid ? 'Fiche enregistrée.' : 'Membre ajouté au personnel.', 'ok'); A().router(); }, function (e) { occupe(bt, false); erreurDans('pf-e', Fb.message(e)); });
       } }],
-      auOuverture: function () { $('pf-cat').onchange = function () { $('liste-fonctions').innerHTML = opts(this.value); }; } });
+      auOuverture: function () {
+        etatPhoto = G.brancherPhoto('pf-ph');
+        $('pf-cat').onchange = function () { $('pf-fs').innerHTML = optionsFonction(this.value, ''); $('pf-fn').style.display = 'none'; };
+        $('pf-fs').onchange = function () { var a = this.value === '__autre'; $('pf-fn').style.display = a ? '' : 'none'; if (a) $('pf-fn').focus(); };
+        function modeVisible() { var m = $('pf-mode').value; $('pf-sal-ch').style.display = m === 'mensuel' ? '' : 'none'; $('pf-taux-ch').style.display = $('pf-h-ch').style.display = m === 'horaire' ? '' : 'none'; }
+        $('pf-mode').onchange = modeVisible; modeVisible();
+      } });
   }
 
   function imprimerPersonnel(l, titulaires, cat) {
@@ -3897,6 +4054,7 @@ var Resume = (function () {
     var r = [];
     if (d.eleves === 'gerer') r.push(['#/eleves?inscrire=1', '🎒', 'Inscrire un élève']);
     if (d.finances === 'gerer') r.push(['#/paiements?encaisser=1', '💳', 'Encaisser un versement'], ['#/rappels', '🔔', 'Rappels de paiement'], ['#/frais', '🧾', 'Frais scolaires de l\'année']);
+    if (d.paie) r.push(['#/salaires', '💼', d.paie === 'gerer' ? 'Payer les salaires du personnel' : 'Salaires du personnel']);
     if (d.classes === 'gerer') r.push(['#/classes', '🏫', 'Classes de l\'année et listes']); else if (d.classes) r.push(['#/classes', '🏫', 'Listes des classes']);
     if (d.personnel) r.push(['#/personnel', '👥', d.personnel === 'gerer' ? 'Gérer le personnel' : 'Liste du personnel']);
     if (d.edt) r.push(['#/edt', '🗓', d.edt === 'gerer' ? 'Programmer l\'emploi du temps' : 'Emplois du temps']);
@@ -3908,11 +4066,12 @@ var Resume = (function () {
     if (dr.finances) quoi.push('dus', 'frais', 'paiements');
     if (dr.personnel) quoi.push('personnel');
     if (dr.edt) quoi.push('edt');
-    G.charger(quoi).then(function (d) {
+    Promise.all([G.charger(quoi), dr.paie ? Paie.resumeMois().catch(function () { return null; }) : null]).then(function (x) {
+      var d = x[0], sal = x[1];
       if (!d.aid) return;
       var l = G.inscrits(d), sx = G.compterSexes(l), cl = G.classesAnnee(d), h = [];
       h.push(tuile('vert', 'Élèves inscrits', l.length, sx.g + ' garçon(s), ' + sx.f + ' fille(s)'));
-      h.push(tuile('bleu', 'Classes ' + esc(d.annee.libelle), cl.length, cl.length ? 'effectif moyen ' + Math.round(l.length / cl.length) : 'à créer par la Direction'));
+      h.push(tuile('bleu', 'Classes ' + esc(d.annee.libelle), cl.length, cl.length ? 'effectif moyen ' + Math.round(l.length / cl.length) : 'à créer par la Fondation ou la Direction'));
       if (dr.finances) {
         var auj = G.aujourdhui(), ok = G.liste(d.paiements).filter(function (p) { return p.statut !== 'annule'; });
         var sit = l.map(function (e) { return G.situation(d, e.id, auj); });
@@ -3921,6 +4080,7 @@ var Resume = (function () {
         var ret = sit.filter(function (s) { return s.retard > 0; });
         h.push(tuile(ret.length ? 'rouge' : 'vert', 'En retard de paiement', ret.length + ' élève(s)', ret.length ? G.M(G.somme(ret, function (s) { return s.retard; })) + ' — <a href="#/rappels">rappels</a>' : 'aucun retard'));
       }
+      if (sal) h.push(tuile(sal.reste ? 'jaune' : 'vert', 'Salaires — ' + G.libMois(sal.mois), G.M(sal.verse) + ' versés', sal.reste ? 'reste ' + G.M(sal.reste) + ' sur ' + G.M(sal.net) + ' — <a href="#/salaires">payer</a>' : (sal.n ? 'tout le personnel est payé' : 'aucun personnel enregistré')));
       if (dr.personnel) {
         var pa = G.liste(d.personnel).filter(function (p) { return p.statut !== 'parti'; });
         h.push(tuile('bleu', 'Personnel en poste', pa.length, pa.filter(function (p) { return p.categorie === 'enseignant'; }).length + ' enseignant(s)'));
@@ -3933,6 +4093,434 @@ var Resume = (function () {
     }, function () { zone.innerHTML = ''; });
   }
   return { raccourcis: raccourcis, tuiles: tuiles };
+})();
+
+/* ---- 37-paie.js ---- */
+/* ================================================================
+   SALAIRES DU PERSONNEL — Comptabilité
+   - Le salaire saisi sur la fiche du personnel (Fondation / Direction)
+     apparaît ici automatiquement ; la Comptabilité peut l'ajuster.
+   - Bulletin du mois : base, heures, primes, CNSS, RTS, retenues.
+   - Versements (avance ou paiement) avec bon de salaire numéroté.
+   - Suivi : net du mois, versé, reste ; historique par personne.
+   - Impressions A4 : bulletin de paie, bon de salaire, état de paiement.
+   ================================================================ */
+var Paie = (function () {
+  'use strict';
+  function A() { return Ecole.api; }
+  function S() { return A().S(); }
+  function ref(c) { return A().ref(c); }
+  function dr() { return A().droits(); }
+  function gerer() { return dr().paie === 'gerer'; }
+  function param(nom) { var m = location.hash.match(new RegExp('[?&]' + nom + '=([^&]+)')); return m ? decodeURIComponent(m[1]) : null; }
+  function tete(titre, sous, droite) { return '<div class="tete-page"><div><h1>' + titre + '</h1>' + (sous ? '<p class="sous-titre">' + sous + '</p>' : '') + '</div><div class="actions-page">' + (droite || '') + '</div></div>'; }
+  function erreurDans(id, t) { var e = $(id); if (e) { e.textContent = t || ''; e.classList.toggle('on', !!t); } }
+  var TYPES = { avance: 'Avance sur salaire', salaire: 'Paiement du salaire' };
+  var GAINS = ['Prime d\'ancienneté', 'Prime de craie / prime pédagogique', 'Indemnité de logement', 'Indemnité de transport', 'Prime d\'examens', 'Prime de rendement', 'Autre prime'];
+  var RETENUES = ['Retenue pour absences / retards', 'Remboursement de prêt', 'Autre retenue'];
+  var ORDRE_CAT = { direction: 0, enseignant: 1, administratif: 2, service: 3 };
+  var ETATS = { paye: ['Payé', 'vert'], partiel: ['Partiel', 'ambre'], non_paye: ['Non payé', 'rouge'], non_defini: ['Salaire non défini', 'gris'], heures: ['Heures à saisir', 'ambre'], nul: ['Rien à payer', 'gris'] };
+
+  /* ---------------- Données et calculs ---------------- */
+  function charger(mois) {
+    return Promise.all([FE.lire(ref('personnel')), FE.lire(ref('paie/bulletins/' + mois)), FE.lire(ref('paie/versements'))]).then(function (x) {
+      return { mois: mois, personnel: x[0] || {}, bulletins: x[1] || {}, versements: G.liste(x[2]) };
+    });
+  }
+  function versementsDe(d, pid, mois) { return d.versements.filter(function (v) { return v.agent === pid && v.mois === (mois || d.mois); }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.t || 0) - (b.t || 0); }); }
+  // Éléments du bulletin : enregistrés pour ce mois, sinon tirés du salaire de la fiche
+  function elements(d, pid) {
+    var stocke = d.bulletins[pid];
+    if (stocke) return Object.assign({ gains: {}, retenues: {} }, stocke, { enregistre: true });
+    var p = d.personnel[pid] || {}, r = p.remuneration || {};
+    return { mode: r.mode || 'mensuel', base: r.mode === 'horaire' ? 0 : (r.salaire || 0), heures: r.heures || 0, taux: r.taux || 0, hsHeures: 0, hsTaux: 0,
+      gains: {}, retenues: {}, cnss: null, cnssAuto: !!r.cnss, rts: 0, nom: G.nomPers(p), fonction: p.fonction || '', enregistre: false, defini: !!r.mode };
+  }
+  function calcul(b, vers) {
+    var base = b.mode === 'horaire' ? Math.round((b.heures || 0) * (b.taux || 0)) : (b.base || 0);
+    var hs = Math.round((b.hsHeures || 0) * (b.hsTaux || 0));
+    var gains = G.liste(b.gains), retenues = G.liste(b.retenues);
+    var brut = base + hs + G.somme(gains, function (g) { return g.montant; });
+    var cnss = b.cnss == null ? (b.cnssAuto ? Math.round(brut * 0.05) : 0) : b.cnss;
+    var rts = b.rts || 0, autres = G.somme(retenues, function (r) { return r.montant; });
+    var ok = (vers || []).filter(function (v) { return v.statut !== 'annule'; });
+    var avances = G.somme(ok.filter(function (v) { return v.type === 'avance'; }), function (v) { return v.montant; });
+    var soldes = G.somme(ok.filter(function (v) { return v.type === 'salaire'; }), function (v) { return v.montant; });
+    var netMois = Math.max(0, brut - cnss - rts - autres), verse = avances + soldes;
+    var defini = b.enregistre || b.defini !== false;
+    var reste = Math.max(0, netMois - verse);
+    return { b: b, base: base, hs: hs, gains: gains, retenues: retenues, brut: brut, cnss: cnss, rts: rts, autres: autres, avances: avances, soldes: soldes,
+      netMois: netMois, netAPayer: Math.max(0, netMois - avances), verse: verse, reste: reste, trop: Math.max(0, verse - netMois), versements: vers || [],
+      etat: !defini && !verse ? 'non_defini' : b.mode === 'horaire' && !b.heures && !verse ? 'heures' : netMois === 0 && !verse ? 'nul' : reste === 0 ? 'paye' : verse > 0 ? 'partiel' : 'non_paye' };
+  }
+  function bulletinDe(d, pid) { return calcul(elements(d, pid), versementsDe(d, pid)); }
+  // Personnes concernées par le mois : en poste, plus toute personne ayant un bulletin ou un versement ce mois-là
+  function agents(d) {
+    var ids = {};
+    Object.keys(d.personnel).forEach(function (k) { if (d.personnel[k].statut !== 'parti') ids[k] = true; });
+    Object.keys(d.bulletins).forEach(function (k) { ids[k] = true; });
+    d.versements.forEach(function (v) { if (v.mois === d.mois) ids[v.agent] = true; });
+    return Object.keys(ids).map(function (k) {
+      var p = d.personnel[k], b = d.bulletins[k], v = d.versements.filter(function (x) { return x.agent === k; })[0];
+      return { id: k, p: p || null, nom: p ? G.nomPers(p) : (b ? b.nom : v ? v.nom : '?'), fonction: p ? p.fonction : (b ? b.fonction : v ? v.fonction : ''), categorie: p ? p.categorie : 'zz', supprime: !p };
+    }).sort(function (a, b) { return ((ORDRE_CAT[a.categorie] == null ? 9 : ORDRE_CAT[a.categorie]) - (ORDRE_CAT[b.categorie] == null ? 9 : ORDRE_CAT[b.categorie])) || a.nom.localeCompare(b.nom, 'fr'); });
+  }
+  function texteRemuneration(p) {
+    var r = p && p.remuneration;
+    if (!r || !r.mode) return '';
+    return r.mode === 'horaire' ? G.M(r.taux || 0) + ' / h' + (r.heures ? ' × ' + r.heures + ' h' : '') : G.M(r.salaire || 0) + ' / mois';
+  }
+
+  /* ======================= PAGE SALAIRES ======================= */
+  function pageSalaires(z) {
+    var mois = param('mois'); if (!/^\d{4}-\d{2}$/.test(mois || '')) mois = G.moisCourant();
+    return charger(mois).then(function (d) {
+      var l = agents(d), calc = {}; l.forEach(function (a) { calc[a.id] = bulletinDe(d, a.id); });
+      var tot = function (k) { return G.somme(l, function (a) { return calc[a.id][k]; }); };
+      var sansSalaire = l.filter(function (a) { return a.p && !(a.p.remuneration && a.p.remuneration.mode) && !d.bulletins[a.id]; });
+      var payes = l.filter(function (a) { return calc[a.id].etat === 'paye'; }).length;
+      var bons = d.versements.filter(function (v) { return v.mois === mois; }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.t || 0) - (a.t || 0); });
+      z.innerHTML = tete('Salaires du personnel', 'Le salaire saisi sur la fiche de chaque membre du personnel apparaît ici automatiquement. Chaque versement (avance ou salaire) produit un bon de salaire numéroté.' + (gerer() ? '' : ' Consultation seule.'),
+        '<label class="gris-t" style="display:flex;gap:6px;align-items:center;font-size:13px">Mois <input class="in-c" type="month" id="sa-mois" value="' + mois + '" style="width:auto"></label>' +
+        '<button class="bt s" id="sa-etat">🖨 État de paiement</button><button class="bt s" id="sa-tous">🖨 Tous les bulletins</button>') +
+        '<div class="grille"><div class="tuile mini bleu"><div class="l">Salaires nets — ' + G.libMois(mois) + '</div><div class="v">' + G.M(tot('netMois')) + '</div><div class="d">brut ' + G.M(tot('brut')) + '</div></div>' +
+          '<div class="tuile mini vert"><div class="l">Déjà versé</div><div class="v">' + G.M(tot('verse')) + '</div><div class="d">dont avances ' + G.M(tot('avances')) + '</div></div>' +
+          '<div class="tuile mini jaune"><div class="l">Reste à verser</div><div class="v">' + G.M(tot('reste')) + '</div></div>' +
+          '<div class="tuile mini ' + (payes === l.length && l.length ? 'vert' : 'rouge') + '"><div class="l">Personnes entièrement payées</div><div class="v">' + payes + ' / ' + l.length + '</div></div></div>' +
+        (sansSalaire.length ? '<div class="alerte att"><b>' + sansSalaire.length + ' personne(s) sans salaire défini</b> : ' + sansSalaire.map(function (a) { return esc(a.nom) + (gerer() ? ' <button class="bt g pt" data-rem="' + a.id + '">Définir le salaire</button>' : ''); }).join(' · ') + '</div>' : '') +
+        (l.length ? '<div class="tab-w"><table class="tb"><thead><tr><th>Personnel</th><th>Rémunération</th><th class="n">Net du mois</th><th class="n">Versé</th><th class="n">Reste</th><th>État</th><th></th></tr></thead><tbody>' +
+          l.map(function (a) { var c = calc[a.id], et = ETATS[c.etat];
+            return '<tr><td style="min-width:150px"><a href="#" data-hist="' + a.id + '"><b>' + esc(a.nom) + '</b></a>' + (a.supprime ? ' <span class="pastille gris">supprimé</span>' : '') + '<div class="gris-t" style="font-size:12.5px">' + esc(a.fonction || '') + '</div></td>' +
+              '<td style="font-size:13px;min-width:120px">' + (texteRemuneration(a.p) ? esc(texteRemuneration(a.p)) : '—') + (gerer() && a.p ? ' <a href="#" data-rem="' + a.id + '" style="font-size:12px">modifier</a>' : '') + (c.b.enregistre ? '<div class="gris-t" style="font-size:11.5px">bulletin du mois enregistré</div>' : '') + '</td>' +
+              '<td class="n" style="white-space:nowrap"><b>' + G.M(c.netMois) + '</b>' + (c.brut ? '<div class="gris-t" style="font-size:12px">brut ' + G.M(c.brut) + (c.cnss + c.rts + c.autres ? ' − ' + G.M(c.cnss + c.rts + c.autres) : '') + '</div>' : '') + '</td><td class="n" style="white-space:nowrap">' + G.M(c.verse) + '</td><td class="n ' + (c.reste ? 'rouge-t' : '') + '" style="white-space:nowrap">' + G.M(c.reste) + '</td>' +
+              '<td><span class="pastille ' + et[1] + '">' + et[0] + '</span></td>' +
+              '<td><div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;min-width:120px;max-width:170px;margin-left:auto">' + (gerer() ? '<button class="bt p pt" data-payer="' + a.id + '"' + (c.netMois || c.verse ? '' : ' disabled') + '>Payer</button><button class="bt s pt" data-bul="' + a.id + '">Bulletin</button>' : '') + '<button class="bt s pt" data-imp="' + a.id + '" title="Imprimer le bulletin de paie">🖨</button></div></td></tr>'; }).join('') +
+          '<tr><td colspan="2" class="fort">TOTAL</td><td class="n fort" style="white-space:nowrap">' + G.M(tot('netMois')) + '</td><td class="n fort">' + G.M(tot('verse')) + '</td><td class="n fort">' + G.M(tot('reste')) + '</td><td colspan="2"></td></tr>' +
+          '</tbody></table></div>' : G.vide('Aucun membre du personnel. La Fondation ou la Direction les enregistre dans « Personnel », avec leur salaire.')) +
+        '<div class="carte" style="margin-top:16px"><h2>Bons de salaire — ' + G.libMois(mois) + '</h2>' + (bons.length ? '<div class="tab-w"><table class="tb"><thead><tr><th>Date</th><th>N°</th><th>Bénéficiaire</th><th>Nature</th><th>Moyen</th><th class="n">Montant</th><th>État</th><th></th></tr></thead><tbody>' +
+          bons.map(function (v) { return '<tr><td>' + G.D(v.date) + '</td><td>' + esc(v.numero) + '</td><td><b>' + esc(v.nom) + '</b></td><td>' + TYPES[v.type] + '</td><td>' + esc(MOYENS[v.moyen] || v.moyen) + (v.reference ? '<div class="gris-t" style="font-size:12px">' + esc(v.reference) + '</div>' : '') + '</td><td class="n fort">' + G.M(v.montant) + '</td>' +
+            '<td>' + (v.statut === 'annule' ? '<span class="pastille gris">Annulé</span><div class="gris-t" style="font-size:12px">' + esc(v.motifAnnulation || '') + '</div>' : '<span class="pastille vert">Valide</span>') + '</td>' +
+            '<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="bt s pt" data-bon="' + v.id + '">🖨 Bon</button>' + (gerer() && v.statut !== 'annule' ? '<button class="bt g pt" data-annuler="' + v.id + '">Annuler</button>' : '') + '</div></td></tr>'; }).join('') +
+          '</tbody></table></div>' : '<p class="gris-t">Aucun versement ce mois-ci.</p>') + '</div>';
+      $('sa-mois').onchange = function () { if (/^\d{4}-\d{2}$/.test(this.value)) { history.replaceState(null, '', '#/salaires?mois=' + this.value); A().router(); } };
+      $('sa-etat').onclick = function () { imprimerEtat(d, l, calc); };
+      $('sa-tous').onclick = function () {
+        var ids = l.filter(function (a) { return calc[a.id].netMois || calc[a.id].verse; }).map(function (a) { return a.id; });
+        if (!ids.length) return toast('Aucun bulletin à imprimer pour ce mois.', 'ko');
+        imprimerBulletins(d, ids);
+      };
+      z.onclick = function (ev) {
+        var t = ev.target.closest('[data-hist],[data-rem],[data-payer],[data-bul],[data-imp],[data-bon],[data-annuler]'); if (!t) return;
+        ev.preventDefault();
+        if (t.dataset.hist) historique(d, t.dataset.hist);
+        else if (t.dataset.rem) definirSalaire(d, t.dataset.rem);
+        else if (t.dataset.payer) payer(d, t.dataset.payer);
+        else if (t.dataset.bul) editerBulletin(d, t.dataset.bul);
+        else if (t.dataset.imp) imprimerBulletins(d, [t.dataset.imp]);
+        else if (t.dataset.bon) imprimerBon(d, t.dataset.bon);
+        else if (t.dataset.annuler) annuler(d, t.dataset.annuler);
+      };
+    });
+  }
+
+  /* ---- Salaire de la fiche (ajusté par la Comptabilité) ---- */
+  function definirSalaire(d, pid) {
+    var p = d.personnel[pid]; if (!p) return;
+    var r = p.remuneration || {}, mode = r.mode || 'mensuel';
+    modal({ titre: 'Salaire — ' + G.nomPers(p), corps: '<p class="gris-t" style="margin-bottom:10px">' + esc(p.fonction) + '. Ce salaire sert de base aux bulletins des mois suivants ; les bulletins déjà enregistrés ne changent pas.</p>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="ds-mode">Rémunération</label><select class="in-c" id="ds-mode"><option value="mensuel"' + (mode === 'mensuel' ? ' selected' : '') + '>Salaire mensuel fixe</option><option value="horaire"' + (mode === 'horaire' ? ' selected' : '') + '>À l\'heure (vacataire)</option></select></div>' +
+        '<div class="ch" id="ds-sal-ch"><label class="lb" for="ds-sal">Salaire mensuel</label><input class="in-c" id="ds-sal" type="number" min="0" step="500" value="' + esc(r.salaire || '') + '"></div>' +
+        '<div class="ch" id="ds-taux-ch"><label class="lb" for="ds-taux">Taux horaire</label><input class="in-c" id="ds-taux" type="number" min="0" step="100" value="' + esc(r.taux || '') + '"></div>' +
+        '<div class="ch" id="ds-h-ch"><label class="lb" for="ds-h">Heures par mois</label><input class="in-c" id="ds-h" type="number" min="0" max="400" value="' + esc(r.heures || '') + '"></div></div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="ds-moy">Payé par</label><select class="in-c" id="ds-moy">' + Object.keys(MOYENS).map(function (m) { return '<option value="' + m + '"' + ((r.moyen || 'especes') === m ? ' selected' : '') + '>' + MOYENS[m] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="ch"><label class="lb" for="ds-num">N° Orange Money / compte</label><input class="in-c" id="ds-num" maxlength="40" value="' + esc(r.numero || '') + '"></div>' +
+        '<div class="ch" style="display:flex;align-items:flex-end"><label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:12px"><input type="checkbox" id="ds-cnss" style="width:18px;height:18px"' + (r.cnss ? ' checked' : '') + '> Retenir la CNSS (5 %)</label></div></div><div class="ch"><div class="er" id="ds-e"></div></div>',
+      boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer', cls: 'p', action: function (fermer, bt) {
+        var md = $('ds-mode').value, sal = Math.round(Number($('ds-sal').value) || 0), taux = Math.round(Number($('ds-taux').value) || 0), h = Number($('ds-h').value) || 0;
+        if (md === 'mensuel' && !sal) return erreurDans('ds-e', 'Indiquez le salaire mensuel.');
+        if (md === 'horaire' && !taux) return erreurDans('ds-e', 'Indiquez le taux horaire.');
+        if (!A().exigerReseau()) return;
+        var rem = { mode: md, cnss: $('ds-cnss').checked, moyen: $('ds-moy').value, majLe: FE.maintenant(), majPar: S().uid };
+        if (md === 'mensuel') rem.salaire = sal; else { rem.taux = taux; if (h) rem.heures = h; }
+        if ($('ds-num').value.trim()) rem.numero = $('ds-num').value.trim();
+        var q = {}; q[ref('personnel/' + pid + '/remuneration')] = rem;
+        Object.assign(q, A().entree('modification', 'paie', 'Salaire de ' + G.nomPers(p) + ' : ' + (md === 'mensuel' ? G.M(sal) + ' / mois' : G.M(taux) + ' / h')));
+        occupe(bt, true);
+        FE.majGroupee(q).then(function () { fermer(); toast('Salaire enregistré.', 'ok'); A().router(); }, function (e) { occupe(bt, false); erreurDans('ds-e', Fb.message(e)); });
+      } }],
+      auOuverture: function () {
+        function vis() { var m = $('ds-mode').value; $('ds-sal-ch').style.display = m === 'mensuel' ? '' : 'none'; $('ds-taux-ch').style.display = $('ds-h-ch').style.display = m === 'horaire' ? '' : 'none'; }
+        $('ds-mode').onchange = vis; vis();
+      } });
+  }
+
+  /* ---- Bulletin du mois (éléments variables) ---- */
+  function lignesHtml(id, liste, choix) {
+    return '<div id="' + id + '">' + liste.map(function (x) { return ligne(x, choix); }).join('') + '</div>';
+  }
+  function ligne(x, choix) {
+    return '<div class="g3 bl-l" style="grid-template-columns:2.4fr 1.2fr auto;align-items:end;margin-bottom:6px"><input class="in-c" data-k="libelle" maxlength="60" list="' + choix + '" value="' + esc(x.libelle || '') + '" placeholder="Libellé"><input class="in-c" data-k="montant" type="number" min="0" step="500" value="' + esc(x.montant || '') + '" placeholder="Montant"><button type="button" class="bt g pt" data-x="1" aria-label="Retirer">✕</button></div>';
+  }
+  function lireLignes(id) {
+    var o = {}, n = 0, pb = null;
+    document.querySelectorAll('#' + id + ' .bl-l').forEach(function (r) {
+      var l = r.querySelector('[data-k="libelle"]').value.trim(), m = Math.round(Number(r.querySelector('[data-k="montant"]').value) || 0);
+      if (!l && !m) return;
+      if (!l) pb = 'Chaque prime ou retenue a besoin d\'un libellé.';
+      o['l' + String(++n).padStart(2, '0')] = { libelle: l.slice(0, 60), montant: m };
+    });
+    return { o: o, pb: pb };
+  }
+  function editerBulletin(d, pid) {
+    var b = elements(d, pid), vers = versementsDe(d, pid), a = agents(d).filter(function (x) { return x.id === pid; })[0];
+    var c0 = calcul(b, vers);
+    modal({ titre: 'Bulletin de paie — ' + G.libMois(d.mois) + ' — ' + a.nom, large: true, corps:
+      '<div class="g3"><div class="ch"><label class="lb" for="bu-mode">Rémunération</label><select class="in-c" id="bu-mode"><option value="mensuel"' + (b.mode !== 'horaire' ? ' selected' : '') + '>Salaire mensuel</option><option value="horaire"' + (b.mode === 'horaire' ? ' selected' : '') + '>À l\'heure</option></select></div>' +
+        '<div class="ch" id="bu-base-ch"><label class="lb" for="bu-base">Salaire de base du mois</label><input class="in-c" id="bu-base" type="number" min="0" step="500" value="' + esc(b.base || '') + '"></div>' +
+        '<div class="ch" id="bu-h-ch"><label class="lb" for="bu-h">Heures effectuées</label><input class="in-c" id="bu-h" type="number" min="0" max="400" step="0.5" value="' + esc(b.heures || '') + '"></div>' +
+        '<div class="ch" id="bu-t-ch"><label class="lb" for="bu-t">Taux horaire</label><input class="in-c" id="bu-t" type="number" min="0" step="100" value="' + esc(b.taux || '') + '"></div></div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="bu-hsh">Heures supplémentaires</label><input class="in-c" id="bu-hsh" type="number" min="0" max="400" step="0.5" value="' + esc(b.hsHeures || '') + '"></div>' +
+        '<div class="ch"><label class="lb" for="bu-hst">Taux des heures sup.</label><input class="in-c" id="bu-hst" type="number" min="0" step="100" value="' + esc(b.hsTaux || '') + '"></div><div></div></div>' +
+      '<div class="sec-form">Primes et indemnités</div>' + lignesHtml('bu-g', G.liste(b.gains), 'liste-gains') + '<button type="button" class="bt g pt" id="bu-g-plus">+ Ajouter une prime</button>' +
+      '<datalist id="liste-gains">' + GAINS.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+      '<div class="sec-form" style="margin-top:12px">Cotisations et retenues</div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="bu-cnss">CNSS (part salariale)</label><div style="display:flex;gap:6px"><input class="in-c" id="bu-cnss" type="number" min="0" step="100" value="' + esc(c0.cnss || '') + '"><button type="button" class="bt s pt" id="bu-cnss5" title="5 % du salaire brut">5 %</button></div></div>' +
+        '<div class="ch"><label class="lb" for="bu-rts">RTS (impôt sur salaire)</label><input class="in-c" id="bu-rts" type="number" min="0" step="100" value="' + esc(b.rts || '') + '"></div><div></div></div>' +
+      lignesHtml('bu-r', G.liste(b.retenues), 'liste-retenues') + '<button type="button" class="bt g pt" id="bu-r-plus">+ Ajouter une retenue</button>' +
+      '<datalist id="liste-retenues">' + RETENUES.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+      '<div class="ch" style="margin-top:12px"><label class="lb" for="bu-note">Note (facultatif)</label><input class="in-c" id="bu-note" maxlength="300" value="' + esc(b.note || '') + '"></div>' +
+      '<div class="resume-frais" id="bu-res"></div><div class="ch"><div class="er" id="bu-e"></div></div>',
+      boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer le bulletin', cls: 'p', action: function (fermer, bt) {
+        var v = lire(); if (v.pb) return erreurDans('bu-e', v.pb);
+        if (!A().exigerReseau()) return;
+        var obj = { nom: a.nom.slice(0, 150), mode: v.b.mode, base: v.b.mode === 'horaire' ? Math.round(v.b.heures * v.b.taux) : v.b.base, majLe: FE.maintenant(), majPar: S().uid };
+        if (a.fonction) obj.fonction = a.fonction.slice(0, 60);
+        ['heures', 'taux', 'hsHeures', 'hsTaux', 'cnss', 'rts'].forEach(function (k) { if (v.b[k]) obj[k] = v.b[k]; });
+        if (Object.keys(v.b.gains).length) obj.gains = v.b.gains;
+        if (Object.keys(v.b.retenues).length) obj.retenues = v.b.retenues;
+        if (v.b.note) obj.note = v.b.note;
+        var q = {}; q[ref('paie/bulletins/' + d.mois + '/' + pid)] = obj;
+        Object.assign(q, A().entree('bulletin', 'paie', G.libMois(d.mois) + ' — ' + a.nom + ' : net du mois ' + G.M(calcul(Object.assign({}, obj, { cnss: obj.cnss || 0 }), vers).netMois)));
+        occupe(bt, true);
+        FE.majGroupee(q).then(function () { fermer(); toast('Bulletin enregistré.', 'ok'); A().router(); }, function (e) { occupe(bt, false); erreurDans('bu-e', Fb.message(e)); });
+      } }],
+      auOuverture: function (racine) {
+        function vis() { var h = $('bu-mode').value === 'horaire'; $('bu-base-ch').style.display = h ? 'none' : ''; $('bu-h-ch').style.display = $('bu-t-ch').style.display = h ? '' : 'none'; }
+        $('bu-mode').onchange = function () { vis(); maj(); }; vis();
+        $('bu-g-plus').onclick = function () { $('bu-g').insertAdjacentHTML('beforeend', ligne({}, 'liste-gains')); };
+        $('bu-r-plus').onclick = function () { $('bu-r').insertAdjacentHTML('beforeend', ligne({}, 'liste-retenues')); };
+        $('bu-cnss5').onclick = function () { var x = lire(); $('bu-cnss').value = Math.round(calcul(Object.assign({}, x.b, { cnss: 0 }), []).brut * 0.05); maj(); };
+        racine.addEventListener('click', function (ev) { var bx = ev.target.closest('[data-x]'); if (bx) { bx.closest('.bl-l').remove(); maj(); } });
+        racine.addEventListener('input', maj);
+        maj();
+      } });
+    function lire() {
+      var g = lireLignes('bu-g'), r = lireLignes('bu-r');
+      var nb = { mode: $('bu-mode').value, base: Math.round(Number($('bu-base').value) || 0), heures: Number($('bu-h').value) || 0, taux: Math.round(Number($('bu-t').value) || 0),
+        hsHeures: Number($('bu-hsh').value) || 0, hsTaux: Math.round(Number($('bu-hst').value) || 0), cnss: Math.round(Number($('bu-cnss').value) || 0), rts: Math.round(Number($('bu-rts').value) || 0),
+        gains: g.o, retenues: r.o, note: $('bu-note').value.trim() };
+      var pb = g.pb || r.pb || (nb.mode === 'mensuel' && !nb.base ? 'Indiquez le salaire de base du mois.' : nb.mode === 'horaire' && (!nb.taux || !nb.heures) ? 'Indiquez les heures effectuées et le taux horaire.' : null);
+      return { b: nb, pb: pb };
+    }
+    function maj() {
+      var c = calcul(lire().b, vers);
+      $('bu-res').innerHTML = 'Salaire brut <b>' + G.M(c.brut) + '</b><br>Cotisations et retenues <b>− ' + G.M(c.cnss + c.rts + c.autres) + '</b><br>Net du mois <b>' + G.M(c.netMois) + '</b><br>' +
+        '<span class="gris-t">Avances déjà versées</span> <b style="font-weight:600">− ' + G.M(c.avances) + '</b><br><span class="gris-t">Salaire déjà versé</span> <b style="font-weight:600">− ' + G.M(c.soldes) + '</b>' +
+        '<hr style="border:none;border-top:1px solid #dfe5f0;margin:6px 0">Reste à verser <b>' + G.M(c.reste) + '</b>';
+    }
+  }
+
+  /* ---- Versement : avance ou paiement du salaire, avec bon numéroté ---- */
+  function payer(d, pid) {
+    var a = agents(d).filter(function (x) { return x.id === pid; })[0], c = bulletinDe(d, pid), r = (a.p && a.p.remuneration) || {};
+    var typeDefaut = 'salaire';
+    modal({ titre: 'Verser — ' + a.nom, corps:
+      '<div class="resume-frais" style="margin-bottom:14px">Mois <b>' + G.libMois(d.mois) + '</b><br>Net du mois <b>' + G.M(c.netMois) + '</b><br>Déjà versé <b>' + G.M(c.verse) + '</b><br>Reste à verser <b class="' + (c.reste ? 'rouge-t' : '') + '">' + G.M(c.reste) + '</b>' +
+        (r.numero ? '<br><span class="gris-t">' + esc(MOYENS[r.moyen] || '') + ' : ' + esc(r.numero) + '</span>' : '') + '</div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="pv-t">Nature</label><select class="in-c" id="pv-t"><option value="salaire"' + (typeDefaut === 'salaire' ? ' selected' : '') + '>Paiement du salaire</option><option value="avance"' + (typeDefaut === 'avance' ? ' selected' : '') + '>Avance sur salaire (acompte)</option></select></div>' +
+        '<div class="ch"><label class="lb" for="pv-m">Montant</label><input class="in-c" id="pv-m" type="number" min="1" step="500" value="' + (c.reste || '') + '" style="font-size:18px;font-weight:800"></div></div>' +
+      '<div class="g3"><div class="ch"><label class="lb" for="pv-d">Date</label><input class="in-c" id="pv-d" type="date" value="' + G.aujourdhui() + '"></div>' +
+        '<div class="ch"><label class="lb" for="pv-mo">Moyen</label><select class="in-c" id="pv-mo">' + Object.keys(MOYENS).map(function (m) { return '<option value="' + m + '"' + ((r.moyen || 'especes') === m ? ' selected' : '') + '>' + MOYENS[m] + '</option>'; }).join('') + '</select></div>' +
+        '<div class="ch"><label class="lb" for="pv-r">Référence</label><input class="in-c" id="pv-r" maxlength="80" placeholder="N° de transaction"></div></div>' +
+      '<label style="display:flex;gap:10px;align-items:center;margin-bottom:6px"><input type="checkbox" id="pv-imp" checked style="width:20px;height:20px"> Imprimer le bon de salaire (2 exemplaires sur une page A4)</label><div class="ch"><div class="er" id="pv-e"></div></div>',
+      boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer le versement', cls: 'p', action: function (fermer, bt) {
+        var v = { type: $('pv-t').value, montant: Math.round(Number($('pv-m').value) || 0), date: $('pv-d').value, moyen: $('pv-mo').value, reference: $('pv-r').value.trim() };
+        if (!(v.montant > 0)) return erreurDans('pv-e', 'Indiquez un montant supérieur à zéro.');
+        if (!v.date || v.date > G.aujourdhui()) return erreurDans('pv-e', 'Date invalide (pas dans le futur).');
+        if (v.montant > c.reste && !bt.dataset.ok) { bt.dataset.ok = '1'; return erreurDans('pv-e', 'Ce versement dépasse le reste à verser (' + G.M(c.reste) + '). Cliquez de nouveau pour confirmer.'); }
+        if (!A().exigerReseau()) return;
+        var imprimerApres = $('pv-imp').checked;
+        occupe(bt, true, 'Enregistrement…');
+        G.compteur('paie/compteurs/bons/' + v.date.slice(0, 4)).then(function (n) {
+          var vid = FE.cle(), obj = { agent: pid, nom: a.nom.slice(0, 150), mois: d.mois, montant: v.montant, type: v.type, moyen: v.moyen, date: v.date,
+            numero: 'BS-' + v.date.slice(0, 4) + '-' + String(n).padStart(6, '0'), t: FE.TS(), par: S().uid, parNom: S().membre.nom, statut: 'valide' };
+          if (a.fonction) obj.fonction = a.fonction.slice(0, 60);
+          if (v.reference) obj.reference = v.reference;
+          var q = {}; q[ref('paie/versements/' + vid)] = obj;
+          // Premier versement du mois : les éléments du bulletin sont figés (un changement de salaire ultérieur ne réécrit pas le passé)
+          if (!c.b.enregistre && c.netMois) {
+            var bb = { nom: a.nom.slice(0, 150), mode: c.b.mode, base: c.base, majLe: FE.maintenant(), majPar: S().uid };
+            if (a.fonction) bb.fonction = a.fonction.slice(0, 60);
+            if (c.b.mode === 'horaire') { bb.heures = c.b.heures || 0; bb.taux = c.b.taux || 0; }
+            if (c.cnss) bb.cnss = c.cnss;
+            q[ref('paie/bulletins/' + d.mois + '/' + pid)] = bb;
+          }
+          Object.assign(q, A().entree('salaire', 'paie', obj.numero + ' — ' + a.nom + ' — ' + TYPES[v.type] + ' ' + G.libMois(d.mois) + ' — ' + G.M(v.montant)));
+          return FE.majGroupee(q).then(function () {
+            fermer(); toast('Versement enregistré : bon ' + obj.numero + '.', 'ok');
+            obj.t = FE.maintenant(); obj.id = vid; d.versements.push(obj);
+            if (!c.b.enregistre && q[ref('paie/bulletins/' + d.mois + '/' + pid)]) d.bulletins[pid] = q[ref('paie/bulletins/' + d.mois + '/' + pid)];
+            if (imprimerApres) imprimerBon(d, vid);
+            A().router();
+          });
+        }).catch(function (e) { occupe(bt, false); erreurDans('pv-e', Fb.message(e)); });
+      } }],
+      auOuverture: function () { $('pv-m').focus(); $('pv-m').select(); } });
+  }
+
+  function annuler(d, vid) {
+    var v = d.versements.filter(function (x) { return x.id === vid; })[0]; if (!v) return;
+    modal({ titre: 'Annuler le bon ' + v.numero, corps: '<p style="line-height:1.6;margin-bottom:10px"><b>' + G.M(v.montant) + '</b> — ' + esc(v.nom) + ' — ' + TYPES[v.type] + ' du ' + G.D(v.date) + '.<br>Le bon reste visible, marqué « Annulé », et n\'est plus compté. Opération définitive.</p>' +
+      '<div class="ch"><label class="lb" for="av-m">Motif</label><input class="in-c" id="av-m" maxlength="300" placeholder="Erreur de saisie, mauvais bénéficiaire…"></div><div class="ch"><div class="er" id="av-e"></div></div>',
+      boutons: [{ txt: 'Retour' }, { txt: 'Annuler le bon', cls: 'd', action: function (fermer, bt) {
+        var m = $('av-m').value.trim(); if (m.length < 3) return erreurDans('av-e', 'Indiquez le motif.');
+        if (!A().exigerReseau()) return;
+        var q = {}, b = 'paie/versements/' + vid + '/';
+        q[ref(b + 'statut')] = 'annule'; q[ref(b + 'annuleLe')] = FE.maintenant(); q[ref(b + 'annulePar')] = S().uid; q[ref(b + 'motifAnnulation')] = m;
+        Object.assign(q, A().entree('annulation', 'paie', v.numero + ' — ' + v.nom + ' — ' + G.M(v.montant) + ' : ' + m));
+        occupe(bt, true);
+        FE.majGroupee(q).then(function () { fermer(); toast('Bon annulé.', 'ok'); A().router(); }, function (e) { occupe(bt, false); erreurDans('av-e', Fb.message(e)); });
+      } }] });
+  }
+
+  /* ---- Historique d'une personne : tous les mois, tous les bons ---- */
+  function historique(d, pid) {
+    FE.lire(ref('paie/bulletins')).then(function (tous) {
+      tous = tous || {};
+      var a = agents(d).filter(function (x) { return x.id === pid; })[0] || { nom: '?', fonction: '' };
+      var moisListe = {};
+      Object.keys(tous).forEach(function (m) { if (tous[m][pid]) moisListe[m] = true; });
+      d.versements.forEach(function (v) { if (v.agent === pid) moisListe[v.mois] = true; });
+      var lignes = Object.keys(moisListe).sort().reverse().map(function (m) {
+        var b = tous[m] && tous[m][pid] ? Object.assign({ gains: {}, retenues: {} }, tous[m][pid], { enregistre: true }) : elements(Object.assign({}, d, { bulletins: {} }), pid);
+        var c = calcul(b, versementsDe(d, pid, m));
+        return { m: m, c: c };
+      });
+      var vers = d.versements.filter(function (v) { return v.agent === pid; }).sort(function (x, y) { return x.date < y.date ? 1 : -1; });
+      modal({ titre: 'Paiements de ' + a.nom, large: true, corps: '<p class="gris-t" style="margin-bottom:10px">' + esc(a.fonction || '') + '</p>' +
+        (lignes.length ? '<div class="tab-w"><table class="tb" style="min-width:0"><thead><tr><th>Mois</th><th class="n">Net du mois</th><th class="n">Versé</th><th class="n">Reste</th><th>État</th><th></th></tr></thead><tbody>' +
+          lignes.map(function (x) { var et = ETATS[x.c.etat]; return '<tr><td><b>' + G.libMois(x.m) + '</b></td><td class="n">' + G.M(x.c.netMois) + '</td><td class="n">' + G.M(x.c.verse) + '</td><td class="n">' + G.M(x.c.reste) + '</td><td><span class="pastille ' + et[1] + '">' + et[0] + '</span></td><td><a href="#/salaires?mois=' + x.m + '" class="bt g pt">Ouvrir le mois</a></td></tr>'; }).join('') +
+          '</tbody></table></div>' : '<p class="gris-t">Aucun paiement enregistré pour le moment.</p>') +
+        (vers.length ? '<h2 style="margin-top:14px;font-size:15px">Bons de salaire</h2><div class="tab-w"><table class="tb" style="min-width:0"><thead><tr><th>Date</th><th>N°</th><th>Mois</th><th>Nature</th><th class="n">Montant</th><th>État</th></tr></thead><tbody>' +
+          vers.map(function (v) { return '<tr><td>' + G.D(v.date) + '</td><td>' + esc(v.numero) + '</td><td>' + G.libMois(v.mois) + '</td><td>' + TYPES[v.type] + '</td><td class="n">' + G.M(v.montant) + '</td><td>' + (v.statut === 'annule' ? '<span class="pastille gris">Annulé</span>' : '<span class="pastille vert">Valide</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>' : ''),
+        boutons: [{ txt: 'Fermer', cls: 'p' }] });
+    }, function (e) { toast(Fb.message(e), 'ko'); });
+  }
+
+  /* ======================= IMPRESSIONS ======================= */
+  function dateLongue(m) { return '01/' + m.slice(5, 7) + '/' + m.slice(0, 4) + ' au ' + G.D(G.finDuMois(m)); }
+  function anciennete(p) {
+    if (!p || !p.dateEmbauche) return '—';
+    var d0 = new Date(p.dateEmbauche + 'T00:00:00'), n = new Date(FE.maintenant());
+    var mois = (n.getFullYear() - d0.getFullYear()) * 12 + n.getMonth() - d0.getMonth();
+    if (mois < 0) return '—';
+    var a = Math.floor(mois / 12), r = mois % 12;
+    return (a ? a + ' an' + (a > 1 ? 's' : '') : '') + (a && r ? ' ' : '') + (r || !a ? r + ' mois' : '');
+  }
+  function bulletinDoc(d, pid, photo) {
+    var a = agents(d).filter(function (x) { return x.id === pid; })[0], c = bulletinDe(d, pid), p = a.p || {}, r = p.remuneration || {}, b = c.b;
+    var M = function (v) { return v ? G.M(v) : ''; };
+    var lignes = [];
+    if (b.mode === 'horaire') lignes.push(['110', 'Heures de vacation', (b.heures || 0) + ' h', G.M(b.taux || 0), M(c.base), '']);
+    else lignes.push(['100', 'Salaire de base', '', '', M(c.base), '']);
+    if (c.hs) lignes.push(['120', 'Heures supplémentaires', (b.hsHeures || 0) + ' h', G.M(b.hsTaux || 0), M(c.hs), '']);
+    c.gains.forEach(function (g, i) { lignes.push([String(130 + i * 10), esc(g.libelle), '', '', M(g.montant), '']); });
+    lignes.push(['', '<b>SALAIRE BRUT</b>', '', '', '<b>' + G.M(c.brut) + '</b>', '']);
+    if (c.cnss) lignes.push(['200', 'CNSS — part salariale', G.M(c.brut), '5 %', '', M(c.cnss)]);
+    if (c.rts) lignes.push(['210', 'RTS — retenue sur traitements et salaires', '', '', '', M(c.rts)]);
+    c.retenues.forEach(function (x, i) { lignes.push([String(220 + i * 5), esc(x.libelle), '', '', '', M(x.montant)]); });
+    if (c.avances) lignes.push(['230', 'Avance sur salaire (acompte)', '', '', '', M(c.avances)]);
+    lignes.push(['', '<b>TOTAL DES RETENUES</b>', '', '', '', '<b>' + G.M(c.cnss + c.rts + c.autres + c.avances) + '</b>']);
+    var bons = c.versements.filter(function (v) { return v.statut !== 'annule'; });
+    return {
+      titre: 'Bulletin de paie', sousTitre: 'Période du ' + dateLongue(d.mois) + ' — <b>' + G.libMois(d.mois) + '</b>',
+      corps: '<div style="display:flex;gap:12px;align-items:stretch;margin-bottom:8px"><div style="flex:1;min-width:0"><table class="ip-tab serre" style="margin:0"><tbody>' + [
+            ['Nom et prénoms', '<b>' + esc(a.nom) + '</b>', 'Fonction', esc(a.fonction || '—')],
+            ['Catégorie', esc(G.CATEGORIES[p.categorie] || '—'), 'Date d\'embauche', G.D(p.dateEmbauche)],
+            ['Ancienneté', anciennete(p), 'Téléphone', esc(p.tel || '—')],
+            ['Rémunération', b.mode === 'horaire' ? 'À l\'heure (vacation)' : 'Mensuelle', 'Paiement', esc((MOYENS[r.moyen] || '—') + (r.numero ? ' — ' + r.numero : ''))]
+          ].map(function (x) { return '<tr><td style="width:20%;color:#334155">' + x[0] + '</td><td style="width:29%"><b>' + x[1] + '</b></td><td style="width:21%;color:#334155">' + x[2] + '</td><td><b>' + x[3] + '</b></td></tr>'; }).join('') + '</tbody></table></div>' +
+          (photo ? '<img src="' + esc(photo) + '" alt="" style="width:26mm;height:31mm;object-fit:cover;border:0.75pt solid #94a3b8;border-radius:3px;flex-shrink:0">' : '') + '</div>' +
+        Impression.tableau([{ t: 'Code', c: 'c', l: '13mm' }, { t: 'Désignation des rubriques' }, { t: 'Base / nombre', c: 'n', l: '26mm' }, { t: 'Taux', c: 'n', l: '22mm' }, { t: 'Gains', c: 'n', l: '27mm' }, { t: 'Retenues', c: 'n', l: '27mm' }], lignes) +
+        '<div style="display:flex;gap:8px;margin:8px 0">' +
+          '<div class="ip-cadre" style="flex:1;margin:0;text-align:center"><div style="font-size:9pt;color:#475569">Salaire brut</div><div style="font-size:12pt;font-weight:800">' + G.M(c.brut) + '</div></div>' +
+          '<div class="ip-cadre" style="flex:1;margin:0;text-align:center"><div style="font-size:9pt;color:#475569">Total des retenues</div><div style="font-size:12pt;font-weight:800">' + G.M(c.cnss + c.rts + c.autres + c.avances) + '</div></div>' +
+          '<div class="ip-cadre" style="flex:1.3;margin:0;text-align:center;background:var(--ip-c);color:#fff;border-color:var(--ip-c)"><div style="font-size:9pt">NET À PAYER</div><div style="font-size:15pt;font-weight:800">' + G.M(c.netAPayer) + '</div></div></div>' +
+        '<p style="font-size:10pt;margin:4px 0 8px">Net à payer en lettres : <b>' + esc(montantEnLettres(c.netAPayer, G.devise())) + '</b></p>' +
+        (bons.length ? '<div class="ip-groupe">Versements du mois</div>' + Impression.tableau([{ t: 'Date', c: 'c', l: '22mm' }, { t: 'Bon N°', l: '36mm' }, { t: 'Nature' }, { t: 'Moyen', l: '36mm' }, { t: 'Montant', c: 'n', l: '30mm' }],
+          bons.map(function (v) { return [G.D(v.date), esc(v.numero), TYPES[v.type], esc(MOYENS[v.moyen] || v.moyen), G.M(v.montant)]; }),
+          ['', '', 'Total versé', '', G.M(c.verse)]) : '') +
+        Impression.meta([['Net du mois', G.M(c.netMois)], ['Total versé', G.M(c.verse)], ['Reste à verser', '<b>' + G.M(c.reste) + '</b>']]) +
+        (b.note ? '<p style="font-size:9.5pt"><b>Note :</b> ' + esc(b.note) + '</p>' : '') +
+        '<p style="font-size:8.5pt;color:#64748b;margin-top:6px">Bulletin à conserver sans limitation de durée.</p>',
+      signatures: [{ titre: 'L\'employeur', nom: (S().parametres && S().parametres.directeur) || '\u00a0' }, { titre: 'Le salarié', nom: a.nom }]
+    };
+  }
+  function imprimerBulletins(d, pids) {
+    Promise.all(pids.map(function (pid) { return G.lirePhoto('personnel', pid); })).then(function (photos) {
+      var docs = pids.map(function (pid, i) { return bulletinDoc(d, pid, photos[i]); });
+      Impression.imprimer({ S: S(), officiel: false, documents: docs, piedTitre: 'Bulletin de paie — ' + G.libMois(d.mois) });
+    });
+  }
+
+  function imprimerBon(d, vid) {
+    var v = d.versements.filter(function (x) { return x.id === vid; })[0]; if (!v) return;
+    var ec = Impression.ecole(S()), dup = (v.impressions || 0) >= 1;
+    var avant = Object.assign({}, d, { versements: d.versements.filter(function (x) { return x.agent !== v.agent || x.mois !== v.mois || x.date < v.date || (x.date === v.date && (x.t || 0) <= (v.t || 0)); }) });
+    var c = calcul(elements(avant, v.agent), versementsDe(avant, v.agent, v.mois));
+    function ligneT(a, b) { return '<tr><td style="width:34%;color:#334155">' + a + '</td><td><b>' + b + '</b></td></tr>'; }
+    function exemplaire(lib) {
+      return '<div class="ip-recu">' + Impression.entete(ec, '', '', false) +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin:7px 0 5px;gap:10px"><div style="font-size:14pt;font-weight:800;letter-spacing:.03em">BON DE SALAIRE</div>' +
+          (v.statut === 'annule' ? '<span class="ip-mention" style="color:#b91c1c">ANNULÉ</span>' : dup ? '<span class="ip-mention" style="color:#92400e">DUPLICATA</span>' : '') +
+          '<div style="text-align:right"><div style="font-size:12pt;font-weight:800">N° ' + esc(v.numero) + '</div><div style="font-size:10pt">Date : ' + G.D(v.date) + '</div></div></div>' +
+        '<table class="ip-tab serre" style="font-size:10pt">' + ligneT('Bénéficiaire', esc(v.nom)) + ligneT('Fonction', esc(v.fonction || '—')) + ligneT('Mois de paie', G.libMois(v.mois)) +
+          ligneT('Nature', TYPES[v.type]) + ligneT('Mode de paiement', esc(MOYENS[v.moyen] || v.moyen) + (v.reference ? ' — réf. ' + esc(v.reference) : '')) + '</table>' +
+        '<div class="ip-cadre" style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin:6px 0"><div style="font-size:9.5pt">Arrêté le présent bon à la somme de :<br><b style="font-size:10.5pt">' + esc(montantEnLettres(v.montant, G.devise())) + '</b></div>' +
+          '<div style="font-size:16pt;font-weight:800;white-space:nowrap">' + G.M(v.montant) + '</div></div>' +
+        '<div style="display:flex;gap:16px;font-size:9.5pt;flex-wrap:wrap">Net du mois : <b>' + G.M(c.netMois) + '</b> <span>Total versé à ce jour : <b>' + G.M(c.verse) + '</b></span> <span>Reste à verser : <b>' + G.M(c.reste) + '</b></span></div>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:9.5pt;gap:10px">' +
+          ['Le Comptable<br><span style="font-size:9pt;color:#334155">' + esc(v.parNom || '') + '</span>', 'Le bénéficiaire<br><span style="font-size:9pt;color:#334155">pour acquit</span>', 'Visa de la Direction<br><span style="font-size:9pt">&nbsp;</span>'].map(function (t) {
+            return '<div style="text-align:center;width:31%">' + t + '<div style="border-top:0.75pt solid #475569;margin-top:26px"></div></div>'; }).join('') + '</div>' +
+        '<div style="position:absolute;bottom:0;right:0;font-size:8pt;color:#64748b">' + lib + '</div></div>';
+    }
+    Impression.imprimer({ S: S(), officiel: false, piedTitre: 'Bon de salaire ' + v.numero, documents: [{ sansEntete: true, sansPied: true, corps: exemplaire('Exemplaire du bénéficiaire') + '<div class="ip-coupe">✂ — — — — — — — — — — — — — — — — — — — — — — — —</div>' + exemplaire('Souche de l\'école') }] });
+    if (gerer()) FE.ecrire(ref('paie/versements/' + vid + '/impressions'), (v.impressions || 0) + 1).then(function () { v.impressions = (v.impressions || 0) + 1; }, function () {});
+  }
+
+  function imprimerEtat(d, l, calc) {
+    var lignes = l.filter(function (a) { return calc[a.id].netMois || calc[a.id].verse; });
+    var tot = function (k) { return G.somme(lignes, function (a) { return calc[a.id][k]; }); };
+    Impression.imprimer({ S: S(), orientation: 'paysage', titre: 'État de paiement des salaires', sousTitre: 'Mois de <b>' + G.libMois(d.mois) + '</b>',
+      corps: Impression.meta([['Personnel', lignes.length], ['Salaires nets', '<b>' + G.M(tot('netMois')) + '</b>'], ['Versé', G.M(tot('verse'))], ['Reste à verser', '<b>' + G.M(tot('reste')) + '</b>']]) +
+        Impression.tableau([{ t: 'N°', c: 'c', l: '8mm' }, { t: 'Nom et prénoms' }, { t: 'Fonction', l: '33mm' }, { t: 'Brut', c: 'n', l: '26mm' }, { t: 'Retenues', c: 'n', l: '24mm' }, { t: 'Avances', c: 'n', l: '25mm' }, { t: 'Net à payer', c: 'n', l: '28mm' }, { t: 'Versé', c: 'n', l: '27mm' }, { t: 'Reste', c: 'n', l: '27mm' }, { t: 'Émargement', l: '30mm' }],
+          lignes.map(function (a, i) { var c = calc[a.id]; return [i + 1, '<b>' + esc(a.nom) + '</b>', esc(a.fonction || ''), G.M(c.brut), G.M(c.cnss + c.rts + c.autres), G.M(c.avances), '<b>' + G.M(c.netAPayer) + '</b>', G.M(c.soldes + c.avances), c.reste ? '<b>' + G.M(c.reste) + '</b>' : G.M(0), '']; }),
+          ['', 'TOTAL', '', G.M(tot('brut')), G.M(G.somme(lignes, function (a) { var c = calc[a.id]; return c.cnss + c.rts + c.autres; })), G.M(tot('avances')), G.M(tot('netAPayer')), G.M(tot('verse')), G.M(tot('reste')), '']),
+      signatures: [{ titre: 'Le Comptable', nom: S().membre.role === 'comptabilite' ? S().membre.nom : '\u00a0' }, { titre: 'Le Directeur', nom: (S().parametres && S().parametres.directeur) || '\u00a0' }, { titre: 'La Fondation', nom: (S().info && S().info.fondateur) || '\u00a0' }] });
+  }
+
+  Ecole.page({ id: 'salaires', titre: 'Salaires du personnel', ic: '💼', voir: function () { return !!dr().paie; }, rendre: pageSalaires });
+
+  // Résumé pour le tableau de bord de la Comptabilité
+  function resumeMois() {
+    var m = G.moisCourant();
+    return charger(m).then(function (d) {
+      var l = agents(d), net = 0, verse = 0, reste = 0;
+      l.forEach(function (a) { var c = bulletinDe(d, a.id); net += c.netMois; verse += c.verse; reste += c.reste; });
+      return { mois: m, net: net, verse: verse, reste: reste, n: l.length };
+    });
+  }
+  return { resumeMois: resumeMois, calcul: calcul };
 })();
 
 /* ---- 40-concepteur.js ---- */
@@ -4328,8 +4916,8 @@ var Concepteur = (function () {
       if (!z) return;
       if (e.code !== 'permission') { z.innerHTML = esc(Fb.message(e)); return; }
       // Règles fermées : sont-ce bien celles de cette version (élèves, finances, personnel, emploi du temps) ?
-      FC.lire('loges_platform/regles/v1_1').then(function () {
-        z.innerHTML = '<span style="color:#4ade80;font-weight:800">✓ Règles actives (version 1.1)</span> : chaque école est cloisonnée, y compris vis-à-vis du concepteur.';
+      FC.lire('loges_platform/regles/v1_3').then(function () {
+        z.innerHTML = '<span style="color:#4ade80;font-weight:800">✓ Règles actives (version 1.3)</span> : chaque école est cloisonnée, y compris vis-à-vis du concepteur.';
       }, function () {
         z.innerHTML = '<span style="color:#fbbf24;font-weight:800">⚠ Règles d\'une version précédente</span> : les inscriptions, paiements, classes, personnel et emplois du temps des écoles sont refusés. Publiez le fichier database.rules.json de cette version.';
       });
