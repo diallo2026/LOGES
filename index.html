@@ -217,6 +217,7 @@ select.fi{appearance:auto}
 @media (max-width:480px){.claire .g3{grid-template-columns:1fr}}
 .claire .sec-form{font-size:13px;font-weight:800;color:var(--accent);margin:8px 0 10px;padding-top:10px;border-top:1px solid var(--bord)}
 .claire .sec-form:first-child{border-top:none;padding-top:0;margin-top:0}
+.claire .aide-mdp{font-size:12.5px;color:var(--texte2);margin:-4px 0 10px;line-height:1.5}
 .claire tr.lien{cursor:pointer}
 .claire tr.lien:hover td{background:#f5f8ff}
 .claire .tuile.mini{padding:12px 14px}
@@ -537,7 +538,7 @@ select.fi{appearance:auto}
    CONFIGURATION DE LA PLATEFORME LOGES
    ================================================================ */
 var LOGES = {
-  version: '1.1.0 — 25/10/2026',
+  version: '1.2.0 — 25/10/2026',
   firebase: {
     apiKey: 'AIzaSyAilF7eamC09Bxj_Hi7J_UcJnvCtvsi6rE',
     authDomain: 'loges-b8212.firebaseapp.com',
@@ -1354,7 +1355,7 @@ var Ecole = (function () {
     }).then(function (m) {
       if (!m) { FE.deconnexion(); throw err('Compte introuvable dans cette école.'); }
       if (m.statut === 'desactive') { FE.deconnexion(); throw err("Ce compte a été désactivé par l'administrateur de votre école."); }
-      if (m.statut === 'remplace') { FE.deconnexion(); throw err("Cet accès a été remplacé. Utilisez le mot de passe provisoire qui vous a été remis."); }
+      if (m.statut === 'remplace') { FE.deconnexion(); throw err("Ce mot de passe a été changé par l'administrateur de votre école : connectez-vous avec le nouveau."); }
       return Promise.all([
         FE.lire('loges_ecoles/' + sid + '/info'), FE.lire('loges_ecoles/' + sid + '/licence'),
         FE.lire('loges_ecoles/' + sid + '/parametres'), FE.lire('loges_platform/config').catch(function () { return null; })
@@ -1382,7 +1383,7 @@ var Ecole = (function () {
     arrets.forEach(function (f) { f(); }); arrets = [];
     arrets.push(FE.surveiller(ref('membres/' + S.uid), function (m) {
       if (!S) return;
-      if (!m || m.statut !== 'actif') return deconnecter(m && m.statut === 'remplace' ? 'Votre accès a été remplacé par un administrateur.' : 'Votre compte a été désactivé.');
+      if (!m || m.statut !== 'actif') return deconnecter(m && m.statut === 'remplace' ? 'Votre mot de passe a été changé par l\'administrateur de votre école : reconnectez-vous avec le nouveau.' : 'Votre compte a été désactivé.');
       var roleChange = m.role !== S.membre.role; S.membre = m;
       if (roleChange) { toast('Votre rôle a changé : ' + ROLES[m.role] + '.', 'ok'); aiguiller(); }
     }));
@@ -1746,38 +1747,65 @@ var Ecole = (function () {
   }
 
   /* ======================= COMPTES UTILISATEURS ======================= */
+  // Le mot de passe est écrit par la personne qui crée ou modifie le compte : c'est le mot de passe définitif.
   function fenetreAcces(titre, username, mdp) {
-    var texte = 'LOGES — vos accès\nIdentifiant de l\'école : ' + S.code + '\nNom d\'utilisateur : ' + username + '\nMot de passe provisoire : ' + mdp + '\nVous choisirez votre propre mot de passe à la première connexion.';
-    modal({ titre: titre, corps: '<p style="line-height:1.6">Transmettez ces informations à la personne concernée. Le mot de passe provisoire n\'est affiché qu\'une seule fois.</p>' +
+    var texte = 'LOGES — vos accès\nIdentifiant de l\'école : ' + S.code + '\nNom d\'utilisateur : ' + username + '\nMot de passe : ' + mdp;
+    modal({ titre: titre, corps: '<p style="line-height:1.6">Transmettez ces informations à la personne concernée. Le mot de passe n\'est enregistré nulle part dans LOGES : notez-le ou envoyez-le maintenant.</p>' +
       '<table class="tb" style="min-width:0;margin-top:12px;font-size:16px"><tr><td>École</td><td><b>' + esc(S.code) + '</b></td></tr><tr><td>Utilisateur</td><td><b>' + esc(username) + '</b></td></tr><tr><td>Mot de passe</td><td><b style="letter-spacing:.05em">' + esc(mdp) + '</b></td></tr></table>' +
       '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="bt s pt" id="fa-copier">Copier le message</button><a class="bt s pt" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(texte) + '">Envoyer par WhatsApp</a></div>',
       boutons: [{ txt: "J'ai transmis ces accès", cls: 'p' }],
       auOuverture: function () { $('fa-copier').onclick = function () { copier(texte); }; } });
   }
 
-  function formulaireMembre(m) {
+  // m : compte existant (modification) ou null (création) ; mdpModifiable : le créateur peut définir un nouveau mot de passe
+  function formulaireMembre(m, mdpModifiable) {
     var roles = Object.keys(ROLES).map(function (r) { return '<option value="' + r + '"' + ((m ? m.role : 'direction') === r ? ' selected' : '') + '>' + ROLES[r] + '</option>'; }).join('');
+    var champsMdp = '<div class="g2"><div class="ch"><label class="lb" for="fm-mdp">' + (m ? 'Nouveau mot de passe' : 'Mot de passe') + '</label><input class="in-c" type="password" id="fm-mdp" autocomplete="new-password"><div class="er" id="fm-e-mdp"></div></div>' +
+      '<div class="ch"><label class="lb" for="fm-mdp2">Confirmer le mot de passe</label><input class="in-c" type="password" id="fm-mdp2" autocomplete="new-password"><div class="er" id="fm-e-mdp2"></div></div></div>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:#475569;margin:-6px 0 12px"><input type="checkbox" id="fm-voir" style="width:18px;height:18px"> Afficher le mot de passe</label>';
     return '<div class="ch"><label class="lb" for="fm-nom">Nom complet</label><input class="in-c" id="fm-nom" maxlength="120" value="' + esc(m ? m.nom : '') + '"><div class="er" id="fm-e-nom"></div></div>' +
-      (m ? '' : '<div class="ch"><label class="lb" for="fm-user">Nom d\'utilisateur</label><input class="in-c" id="fm-user" autocapitalize="none" spellcheck="false"><div class="ai">Lettres minuscules, chiffres, tiret ou souligné. Servira à la connexion.</div><div class="er" id="fm-e-user"></div></div>') +
-      '<div class="ch"><label class="lb" for="fm-role">Rôle</label><select class="in-c" id="fm-role"' + (m && m.proprietaire ? ' disabled' : '') + '>' + roles + '</select>' + (m && m.proprietaire ? '<div class="ai">Le compte principal garde le rôle Fondation.</div>' : '') + '</div>' +
+      (m ? '<div class="ch"><label class="lb">Nom d\'utilisateur</label><div style="font-weight:700;padding:2px 0">' + esc(m.username) + '</div><div class="ai">Identifiant de connexion, non modifiable.</div></div>'
+        : '<div class="ch"><label class="lb" for="fm-user">Nom d\'utilisateur</label><input class="in-c" id="fm-user" autocapitalize="none" spellcheck="false" autocomplete="off"><div class="ai">Lettres minuscules, chiffres, tiret ou souligné. Servira à la connexion.</div><div class="er" id="fm-e-user"></div></div>') +
+      '<div class="ch"><label class="lb" for="fm-role">Rôle</label><select class="in-c" id="fm-role"' + (m && (m.proprietaire || m.uid === S.uid) ? ' disabled' : '') + '>' + roles + '</select>' + (m && m.proprietaire ? '<div class="ai">Le compte principal garde le rôle Fondation.</div>' : m && m.uid === S.uid ? '<div class="ai">Personne ne modifie son propre rôle.</div>' : '') + '</div>' +
       '<div class="g2"><div class="ch"><label class="lb" for="fm-tel">Téléphone (facultatif)</label><input class="in-c" id="fm-tel" type="tel" value="' + esc(m && m.tel || '') + '"><div class="er" id="fm-e-tel"></div></div>' +
       '<div class="ch"><label class="lb" for="fm-email">E-mail (facultatif)</label><input class="in-c" id="fm-email" type="email" value="' + esc(m && m.email || '') + '"><div class="er" id="fm-e-email"></div></div></div>' +
-      (m ? '' : '<div class="ch"><label class="lb" for="fm-mdp">Mot de passe provisoire</label><div style="display:flex;gap:8px"><input class="in-c" id="fm-mdp" value="' + genMdp() + '"><button type="button" class="bt s" id="fm-gen">Générer</button></div><div class="ai">La personne devra le changer à sa première connexion.</div><div class="er" id="fm-e-mdp"></div></div>') +
+      (!m ? '<div class="sec-form" style="margin-top:4px">Mot de passe du compte</div><p class="aide-mdp">8 caractères minimum, lettres et chiffres. C\'est le mot de passe définitif de la personne : elle ne sera pas obligée d\'en changer.</p>' + champsMdp
+        : mdpModifiable ? '<div class="sec-form" style="margin-top:4px">Mot de passe</div><p class="aide-mdp">Laissez vide pour garder le mot de passe actuel. Un nouveau mot de passe remplace l\'ancien immédiatement, sur tous les appareils.</p>' + champsMdp
+        : '<p class="aide-mdp">' + (m.uid === S.uid ? 'Votre propre mot de passe se change dans « Mon compte ».' : 'Le mot de passe du compte principal se change par son titulaire.') + '</p>') +
       '<div class="er" id="fm-e"></div>';
   }
   function erreurFm(k, t) { var e = $('fm-e-' + k) || $('fm-e'); e.textContent = t || ''; e.classList.toggle('on', !!t); }
+  function brancherFormulaireMembre() {
+    // Une erreur disparaît dès que le champ concerné est corrigé
+    ['nom', 'user', 'tel', 'email', 'mdp', 'mdp2'].forEach(function (k) { var c = $('fm-' + k); if (c) c.addEventListener('input', function () { erreurFm(k, ''); erreurFm('', ''); }); });
+    var v = $('fm-voir');
+    if (v) v.onchange = function () { ['fm-mdp', 'fm-mdp2'].forEach(function (id) { $(id).type = v.checked ? 'text' : 'password'; }); };
+    var u = $('fm-user');
+    if (u) u.addEventListener('input', function () { this.value = this.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); });
+  }
+  // Contrôle du mot de passe saisi (obligatoire à la création, facultatif à la modification)
+  function lireMdp(obligatoire) {
+    var a = $('fm-mdp') ? $('fm-mdp').value : '', b = $('fm-mdp2') ? $('fm-mdp2').value : '';
+    erreurFm('mdp', ''); erreurFm('mdp2', '');
+    if (!a && !b && !obligatoire) return { ok: true, mdp: '' };
+    var pb = mdpProbleme(a);
+    if (pb) { erreurFm('mdp', pb); return { ok: false }; }
+    if (a !== b) { erreurFm('mdp2', 'Les deux mots de passe ne sont pas identiques.'); return { ok: false }; }
+    return { ok: true, mdp: a };
+  }
 
   function creerMembre(fermer, bt) {
     var nom = $('fm-nom').value.trim(), user = $('fm-user').value.trim().toLowerCase(), role = $('fm-role').value,
-      tel = $('fm-tel').value.trim(), email = $('fm-email').value.trim(), mdp = $('fm-mdp').value;
+      tel = $('fm-tel').value.trim(), email = $('fm-email').value.trim();
     var ok = true;
-    ['nom', 'user', 'tel', 'email', 'mdp'].forEach(function (k) { erreurFm(k, ''); }); erreurFm('', '');
+    ['nom', 'user', 'tel', 'email'].forEach(function (k) { erreurFm(k, ''); }); erreurFm('', '');
     if (nom.length < 2) { erreurFm('nom', 'Indiquez le nom complet.'); ok = false; }
     if (!RE_USER.test(user)) { erreurFm('user', '3 à 32 caractères : lettres minuscules, chiffres, tiret ou souligné.'); ok = false; }
     if (tel && !RE_TEL.test(tel)) { erreurFm('tel', 'Numéro invalide.'); ok = false; }
     if (email && !RE_EMAIL.test(email)) { erreurFm('email', 'Adresse invalide.'); ok = false; }
-    var pb = mdpProbleme(mdp); if (pb) { erreurFm('mdp', pb); ok = false; }
+    var m0 = lireMdp(true); if (!m0.ok) ok = false;
     if (!ok || !exigerReseau()) return;
+    var mdp = m0.mdp;
     occupe(bt, true, 'Création…');
     var compte = null;
     FE.lire(ref('identifiants/' + user)).then(function (id) {
@@ -1788,7 +1816,7 @@ var Ecole = (function () {
       });
     }).then(function (c) {
       compte = c;
-      var m = { username: user, nom: nom, role: role, statut: 'actif', proprietaire: false, doitChangerMdp: true, creeLe: FE.maintenant(), creePar: S.uid };
+      var m = { username: user, nom: nom, role: role, statut: 'actif', proprietaire: false, doitChangerMdp: false, creeLe: FE.maintenant(), creePar: S.uid };
       if (tel) m.tel = tel; if (email) m.email = email;
       var p = {};
       p['loges_utilisateurs/' + c.uid] = { ecole: S.sid };
@@ -1806,29 +1834,31 @@ var Ecole = (function () {
     });
   }
 
-  function remiseAcces(uidCible, m) {
-    confirmer("Remettre l'accès de " + esc(m.nom), 'Un nouveau mot de passe provisoire sera créé pour <b>' + esc(m.username) + '</b>. L\'ancien ne fonctionnera plus et la personne en choisira un nouveau à la connexion.', "Remettre l'accès").then(function (ok) {
-      if (!ok || !exigerReseau()) return;
-      var mdp = genMdp(), compte = null;
-      FE.lire(ref('identifiants/' + m.username)).then(function (id) {
-        var v = ((id && id.v) || 1) + 1;
-        return Fb.creerCompteSepare(emailConnexion(m.username, S.code, v), mdp).then(function (c) {
-          compte = c;
-          var nm = { username: m.username, nom: m.nom, role: m.role, statut: 'actif', proprietaire: false, doitChangerMdp: true, creeLe: FE.maintenant(), creePar: S.uid };
-          ['tel', 'email', 'accesFinances'].forEach(function (k) { if (m[k] !== undefined && m[k] !== '') nm[k] = m[k]; });
-          var p = {};
-          p['loges_utilisateurs/' + c.uid] = { ecole: S.sid };
-          p[ref('identifiants/' + m.username)] = { v: v };
-          p[ref('membres/' + c.uid)] = nm;
-          p[ref('membres/' + uidCible + '/statut')] = 'remplace';
-          p[ref('membres/' + uidCible + '/remplacePar')] = c.uid;
-          Object.assign(p, entree('remise_acces', 'compte', m.username));
-          return FE.majGroupee(p).catch(function (e) { return c.annuler().then(function () { throw e; }); });
-        });
-      }).then(function () { return compte.terminer(); }).then(function () {
-        fenetreAcces('Accès remis', m.username, mdp); router();
-      }).catch(function (e) { toast(e.texte || Fb.message(e), 'ko'); });
-    });
+  /* Nouveau mot de passe défini par le créateur du compte.
+     Sans serveur d'administration, Firebase ne permet pas de changer le mot de passe d'une
+     autre personne : un nouveau compte de connexion est créé avec ce mot de passe et reprend
+     la fiche (nom, rôle, droits, état) ; l'ancien est marqué « remplacé » et cesse aussitôt
+     de fonctionner. Le nom d'utilisateur, l'historique et le journal ne changent pas. */
+  function nouveauMotDePasse(uidCible, m, valeurs, mdp, detail) {
+    var compte = null;
+    return FE.lire(ref('identifiants/' + m.username)).then(function (id) {
+      var v = ((id && id.v) || 1) + 1;
+      return Fb.creerCompteSepare(emailConnexion(m.username, S.code, v), mdp).then(function (c) {
+        compte = c;
+        var nm = { username: m.username, nom: valeurs.nom, role: valeurs.role, statut: m.statut === 'desactive' ? 'desactive' : 'actif', proprietaire: false, doitChangerMdp: false,
+          creeLe: m.creeLe || FE.maintenant(), creePar: m.creePar || S.uid };
+        if (valeurs.tel) nm.tel = valeurs.tel; if (valeurs.email) nm.email = valeurs.email;
+        if (m.accesFinances) nm.accesFinances = true;
+        var p = {};
+        p['loges_utilisateurs/' + c.uid] = { ecole: S.sid };
+        p[ref('identifiants/' + m.username)] = { v: v };
+        p[ref('membres/' + c.uid)] = nm;
+        p[ref('membres/' + uidCible + '/statut')] = 'remplace';
+        p[ref('membres/' + uidCible + '/remplacePar')] = c.uid;
+        Object.assign(p, entree('modification', 'compte', m.username + ' : nouveau mot de passe défini' + (detail ? ', ' + detail : '')));
+        return FE.majGroupee(p).catch(function (e) { return c.annuler().then(function () { throw e; }); });
+      });
+    }).then(function () { return compte.terminer(); });
   }
 
   function pageComptes(z) {
@@ -1844,10 +1874,7 @@ var Ecole = (function () {
           var moi = m.uid === S.uid, modifiable = gerer && (!m.proprietaire || moi);
           var act = [];
           if (modifiable) act.push('<button class="bt g pt" data-modifier="' + m.uid + '">Modifier</button>');
-          if (gerer && !moi && !m.proprietaire) {
-            act.push('<button class="bt g pt" data-remise="' + m.uid + '">Remettre l\'accès</button>');
-            act.push('<button class="bt g pt" data-etat="' + m.uid + '">' + (m.statut === 'actif' ? 'Désactiver' : 'Réactiver') + '</button>');
-          }
+          if (gerer && !moi && !m.proprietaire) act.push('<button class="bt g pt" data-etat="' + m.uid + '">' + (m.statut === 'actif' ? 'Désactiver' : 'Réactiver') + '</button>');
           if (gerer && m.role === 'fondation' && !moi) act.push('<button class="bt g pt" data-finances="' + m.uid + '">' + (m.accesFinances ? 'Retirer finances' : 'Accès finances') + '</button>');
           return '<tr><td><b>' + esc(m.nom) + '</b>' + (moi ? ' <span style="color:#8a94a6">(vous)</span>' : '') + '<div style="color:#8a94a6;font-size:13px">' + esc(m.username) + (m.tel ? ' — ' + esc(m.tel) : '') + '</div>' +
             (m.proprietaire ? '<span class="pastille bleu" style="margin-top:4px">Compte principal</span>' : '') + '</td>' +
@@ -1859,30 +1886,44 @@ var Ecole = (function () {
       if (!gerer) return;
       function ouvrirCreation() {
         modal({ titre: 'Créer un compte', corps: formulaireMembre(null), boutons: [{ txt: 'Annuler' }, { txt: 'Créer le compte', cls: 'p', action: creerMembre }],
-          auOuverture: function () { $('fm-gen').onclick = function () { $('fm-mdp').value = genMdp(); }; $('fm-user').addEventListener('input', function () { this.value = this.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''); }); } });
+          auOuverture: brancherFormulaireMembre });
       }
       $('btn-compte').onclick = ouvrirCreation;
       if (/nouveau=1/.test(location.hash)) { history.replaceState(null, '', '#/comptes'); ouvrirCreation(); }
       z.onclick = function (ev) {
         var t = ev.target.closest('button'); if (!t) return;
-        var uid = t.dataset.modifier || t.dataset.remise || t.dataset.etat || t.dataset.finances; if (!uid) return;
+        var uid = t.dataset.modifier || t.dataset.etat || t.dataset.finances; if (!uid) return;
         var m = mm[uid];
         if (t.dataset.modifier) {
-          modal({ titre: 'Modifier — ' + m.nom, corps: formulaireMembre(m), boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer', cls: 'p', action: function (fermer, bt) {
-            var nom = $('fm-nom').value.trim(), tel = $('fm-tel').value.trim(), email = $('fm-email').value.trim(), role = $('fm-role').value;
-            ['nom', 'tel', 'email'].forEach(function (k) { erreurFm(k, ''); });
+          // Le créateur du compte (Fondation) modifie tout : nom, rôle, contacts et mot de passe
+          var mdpModifiable = uid !== S.uid && !m.proprietaire;
+          modal({ titre: 'Modifier — ' + m.nom, corps: formulaireMembre(m, mdpModifiable), auOuverture: brancherFormulaireMembre, boutons: [{ txt: 'Annuler' }, { txt: 'Enregistrer', cls: 'p', action: function (fermer, bt) {
+            var nom = $('fm-nom').value.trim(), tel = $('fm-tel').value.trim(), email = $('fm-email').value.trim(), role = (m.proprietaire || uid === S.uid) ? m.role : $('fm-role').value;
+            ['nom', 'tel', 'email'].forEach(function (k) { erreurFm(k, ''); }); erreurFm('', '');
             if (nom.length < 2) return erreurFm('nom', 'Indiquez le nom complet.');
             if (tel && !RE_TEL.test(tel)) return erreurFm('tel', 'Numéro invalide.');
             if (email && !RE_EMAIL.test(email)) return erreurFm('email', 'Adresse invalide.');
-            if (!exigerReseau()) return;
+            var nm = mdpModifiable ? lireMdp(false) : { ok: true, mdp: '' };
+            if (!nm.ok || !exigerReseau()) return;
+            var changes = [];
+            if (nom !== m.nom) changes.push('nom');
+            if (role !== m.role) changes.push(ROLES[m.role] + ' → ' + ROLES[role]);
+            if ((tel || '') !== (m.tel || '')) changes.push('téléphone');
+            if ((email || '') !== (m.email || '')) changes.push('e-mail');
+            occupe(bt, true, 'Enregistrement…');
+            var fin = function (texte) { fermer(); toast(texte, 'ok'); if (uid === S.uid) { S.membre.nom = nom; } router(); };
+            if (nm.mdp) {
+              nouveauMotDePasse(uid, m, { nom: nom, role: role, tel: tel, email: email }, nm.mdp, changes.join(', ')).then(function () {
+                fermer(); fenetreAcces('Compte modifié — nouveau mot de passe', m.username, nm.mdp); router();
+              }, function (e) { occupe(bt, false); erreurFm('', e.texte || Fb.message(e)); });
+              return;
+            }
+            if (!changes.length) { fermer(); return; }
             var p = {}; p[ref('membres/' + uid + '/nom')] = nom; p[ref('membres/' + uid + '/tel')] = tel || null; p[ref('membres/' + uid + '/email')] = email || null;
-            if (!m.proprietaire && uid !== S.uid) p[ref('membres/' + uid + '/role')] = role;
-            Object.assign(p, entree('modification', 'compte', m.username + (role !== m.role && !m.proprietaire && uid !== S.uid ? ' : ' + ROLES[m.role] + ' → ' + ROLES[role] : '')));
-            occupe(bt, true);
-            FE.majGroupee(p).then(function () { fermer(); toast('Compte modifié.', 'ok'); if (uid === S.uid) { S.membre.nom = nom; } router(); }, function (e) { occupe(bt, false); erreurFm('', Fb.message(e)); });
+            if (role !== m.role) p[ref('membres/' + uid + '/role')] = role;
+            Object.assign(p, entree('modification', 'compte', m.username + ' : ' + changes.join(', ')));
+            FE.majGroupee(p).then(function () { fin('Compte modifié.'); }, function (e) { occupe(bt, false); erreurFm('', Fb.message(e)); });
           } }] });
-        } else if (t.dataset.remise) {
-          remiseAcces(uid, m);
         } else if (t.dataset.etat) {
           var vers = m.statut === 'actif' ? 'desactive' : 'actif';
           confirmer(vers === 'desactive' ? 'Désactiver le compte' : 'Réactiver le compte',
@@ -2097,7 +2138,7 @@ var Ecole = (function () {
     var m = S.membre;
     z.innerHTML = '<div class="tete-page"><div><h1>Mon compte</h1></div></div><div class="carte"><h2>Identité</h2><table class="tb" style="min-width:0"><tr><td>Nom</td><td><b>' + esc(m.nom) + '</b></td></tr><tr><td>Nom d\'utilisateur</td><td><b>' + esc(m.username) + '</b></td></tr><tr><td>Identifiant de l\'école</td><td><b>' + esc(S.code) + '</b></td></tr><tr><td>Rôle</td><td><b>' + ROLES[m.role] + (m.proprietaire ? ' (compte principal)' : '') + '</b></td></tr></table></div>' +
       '<div class="carte"><h2>Changer mon mot de passe</h2>' + formulaireMdp(false) + '</div>' +
-      '<div class="carte"><h2>Sécurité</h2><p style="color:#475569;line-height:1.6">Votre session se ferme automatiquement après ' + LOGES.inactiviteMinutes + ' minutes d\'inactivité.' + (m.proprietaire ? ' En cas d\'oubli de votre mot de passe, le concepteur peut vous remettre un accès après vérification de votre identité par téléphone.' : ' En cas d\'oubli, l\'administrateur de votre école peut vous remettre un accès.') + '</p><button class="bt s" style="margin-top:10px" id="mc-deco">Se déconnecter de cet appareil</button></div>';
+      '<div class="carte"><h2>Sécurité</h2><p style="color:#475569;line-height:1.6">Votre session se ferme automatiquement après ' + LOGES.inactiviteMinutes + ' minutes d\'inactivité.' + (m.proprietaire ? ' En cas d\'oubli de votre mot de passe, le concepteur peut vous remettre un accès après vérification de votre identité par téléphone.' : ' En cas d\'oubli, l\'administrateur de votre école peut vous définir un nouveau mot de passe.') + '</p><button class="bt s" style="margin-top:10px" id="mc-deco">Se déconnecter de cet appareil</button></div>';
     brancherMdp(function () { $('mp-a').value = $('mp-n').value = $('mp-c').value = ''; });
     $('mc-deco').onclick = function () { deconnecter(); };
   }
@@ -3469,6 +3510,11 @@ var Direction = (function () {
   function tete(titre, sous, droite) { return '<div class="tete-page"><div><h1>' + titre + '</h1>' + (sous ? '<p class="sous-titre">' + sous + '</p>' : '') + '</div><div class="actions-page">' + (droite || '') + '</div></div>'; }
   function erreurDans(id, t) { var e = $(id); if (e) { e.textContent = t || ''; e.classList.toggle('on', !!t); } }
   var ORDRE_CAT = ['direction', 'enseignant', 'administratif', 'service'];
+  function compteActuel(membres, uid) {
+    var n = 0;
+    while (uid && membres[uid] && membres[uid].statut === 'remplace' && membres[uid].remplacePar && n++ < 20) uid = membres[uid].remplacePar;
+    return uid;
+  }
 
   /* ======================= PERSONNEL ======================= */
   function pagePersonnel(z) {
@@ -3476,8 +3522,9 @@ var Direction = (function () {
     return Promise.all([G.charger(['niveaux', 'classes', 'personnel']), FE.lire(ref('membres')).catch(function () { return null; })]).then(function (x) {
       var d = x[0], membres = x[1] || {};
       var tous = G.liste(d.personnel).sort(G.trierParNom), actifs = tous.filter(function (p) { return p.statut !== 'parti'; });
-      // Comptes de connexion (Direction, Comptabilité) pas encore inscrits dans la liste du personnel
-      var lies = {}; tous.forEach(function (p) { if (p.membre) lies[p.membre] = true; });
+      // Comptes de connexion (Direction, Comptabilité) pas encore inscrits dans la liste du personnel.
+      // Un compte dont le mot de passe a été redéfini est remplacé : on suit le lien vers le compte actuel.
+      var lies = {}; tous.forEach(function (p) { if (p.membre) lies[compteActuel(membres, p.membre)] = true; });
       var aAjouter = Object.keys(membres).filter(function (u) { var m = membres[u]; return m.statut === 'actif' && m.role !== 'fondation' && !lies[u]; }).map(function (u) { var m = Object.assign({}, membres[u]); m.uid = u; return m; })
         .sort(function (a, b) { return (a.role === 'direction' ? 0 : 1) - (b.role === 'direction' ? 0 : 1); });
       var titulaires = {}; G.classesAnnee(d).forEach(function (c) { if (c.titulaire) (titulaires[c.titulaire] = titulaires[c.titulaire] || []).push(c.nom); });
@@ -3499,7 +3546,7 @@ var Direction = (function () {
           var g = l.filter(function (x) { return x.categorie === c; });
           return '<div class="carte" style="padding:14px 16px"><h2>' + G.CATEGORIES[c] + ' <span class="gris-t" style="font-weight:600">(' + g.length + ')</span></h2><div class="tab-w"><table class="tb"><thead><tr><th class="n">N°</th><th>Nom et prénoms</th><th>Fonction</th><th>Sexe</th><th>Téléphone</th><th>Diplôme / spécialité</th><th>Depuis le</th>' + (c === 'enseignant' ? '<th>Classe tenue</th>' : '') + '<th>État</th>' + (gerer ? '<th></th>' : '') + '</tr></thead><tbody>' +
             g.map(function (p, i) {
-              return '<tr><td class="n">' + (i + 1) + '</td><td><b>' + esc(G.nomPers(p)) + '</b>' + (p.membre && membres[p.membre] ? '<div class="gris-t" style="font-size:12px">compte LOGES : ' + esc(membres[p.membre].username) + '</div>' : '') + '</td><td>' + esc(p.fonction) + '</td><td>' + esc(p.sexe) + '</td><td>' + esc(p.tel || '—') + '</td>' +
+              return '<tr><td class="n">' + (i + 1) + '</td><td><b>' + esc(G.nomPers(p)) + '</b>' + (p.membre && membres[compteActuel(membres, p.membre)] ? '<div class="gris-t" style="font-size:12px">compte LOGES : ' + esc(membres[compteActuel(membres, p.membre)].username) + '</div>' : '') + '</td><td>' + esc(p.fonction) + '</td><td>' + esc(p.sexe) + '</td><td>' + esc(p.tel || '—') + '</td>' +
                 '<td>' + esc([p.diplome, p.specialite].filter(Boolean).join(' — ') || '—') + '</td><td>' + G.D(p.dateEmbauche) + '</td>' + (c === 'enseignant' ? '<td>' + esc((titulaires[p.id] || []).join(', ') || '—') + '</td>' : '') +
                 '<td>' + (p.statut === 'parti' ? '<span class="pastille gris">Parti' + (p.dateDepart ? ' le ' + G.D(p.dateDepart) : '') + '</span>' : '<span class="pastille vert">En poste</span>') + '</td>' +
                 (gerer ? '<td><div style="display:flex;gap:4px;justify-content:flex-end"><button class="bt g pt" data-mod="' + p.id + '">Modifier</button>' + (p.statut === 'parti' ? '<button class="bt g pt" data-retour="' + p.id + '">Réintégrer</button>' : '<button class="bt g pt" data-depart="' + p.id + '">Départ</button>') + '</div></td>' : '') + '</tr>';
@@ -3553,7 +3600,7 @@ var Direction = (function () {
       '<div class="g3"><div class="ch"><label class="lb" for="pf-dn">Date de naissance</label><input class="in-c" id="pf-dn" type="date" value="' + esc(p.dateNaissance || '') + '"></div><div class="ch"><label class="lb" for="pf-de">Date d\'embauche</label><input class="in-c" id="pf-de" type="date" value="' + esc(p.dateEmbauche || '') + '"></div>' +
       '<div class="ch"><label class="lb" for="pf-adr">Adresse</label><input class="in-c" id="pf-adr" maxlength="200" value="' + esc(p.adresse || '') + '"></div></div>' +
       '<div class="g2"><div class="ch"><label class="lb" for="pf-dip">Diplôme</label><input class="in-c" id="pf-dip" maxlength="120" value="' + esc(p.diplome || '') + '" placeholder="Ex. : ENI, licence, BEPC…"></div><div class="ch"><label class="lb" for="pf-sp">Spécialité / matières</label><input class="in-c" id="pf-sp" maxlength="120" value="' + esc(p.specialite || '') + '"></div></div>' +
-      '<div class="g2"><div class="ch"><label class="lb" for="pf-mb">Compte LOGES associé</label><select class="in-c" id="pf-mb"><option value="">Aucun</option>' + Object.keys(membres).filter(function (u) { return membres[u].statut === 'actif'; }).map(function (u) { return '<option value="' + u + '"' + (p.membre === u ? ' selected' : '') + '>' + esc(membres[u].nom) + ' (' + ROLES[membres[u].role] + ')</option>'; }).join('') + '</select></div>' +
+      '<div class="g2"><div class="ch"><label class="lb" for="pf-mb">Compte LOGES associé</label><select class="in-c" id="pf-mb"><option value="">Aucun</option>' + Object.keys(membres).filter(function (u) { return membres[u].statut === 'actif'; }).map(function (u) { return '<option value="' + u + '"' + (p.membre && compteActuel(membres, p.membre) === u ? ' selected' : '') + '>' + esc(membres[u].nom) + ' (' + ROLES[membres[u].role] + ')</option>'; }).join('') + '</select></div>' +
       '<div class="ch"><label class="lb" for="pf-obs">Observations</label><input class="in-c" id="pf-obs" maxlength="300" value="' + esc(p.observations || '') + '"></div></div><div class="ch"><div class="er" id="pf-e"></div></div>',
       boutons: [{ txt: 'Annuler' }, { txt: pid ? 'Enregistrer' : 'Ajouter', cls: 'p', action: function (fermer, bt) {
         var v = { nom: $('pf-nom').value.trim().toUpperCase(), prenom: $('pf-pre').value.trim(), sexe: $('pf-sx').value, categorie: $('pf-cat').value, fonction: $('pf-fn').value.trim(),
