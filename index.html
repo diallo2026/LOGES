@@ -544,7 +544,7 @@ select.fi{appearance:auto}
    CONFIGURATION DE LA PLATEFORME LOGES
    ================================================================ */
 var LOGES = {
-  version: '1.3.0 — 25/10/2026',
+  version: '1.4.0 — 25/10/2026',
   firebase: {
     apiKey: 'AIzaSyAilF7eamC09Bxj_Hi7J_UcJnvCtvsi6rE',
     authDomain: 'loges-b8212.firebaseapp.com',
@@ -560,9 +560,12 @@ var LOGES = {
   // Les identifiants de connexion deviennent « utilisateur@ecole.loges.invalid » :
   // domaine réservé, aucun e-mail n'y est jamais envoyé.
   domaineConnexion: 'loges.invalid',
-  // Seule cette adresse (vérifiée) peut créer le premier compte concepteur.
-  // Doit être identique à EMAIL_CONCEPTEUR dans outils/generer-regles.mjs.
+  // Adresse du compte concepteur. Le code de validation est envoyé à cette seule
+  // adresse par le relais (outils/relais-concepteur.gs, RELAIS.emailConcepteur).
   emailsConcepteur: ['souleymane0403@gmail.com'],
+  // Adresse du relais de validation (Google Apps Script → Déployer → Application Web),
+  // de la forme https://script.google.com/macros/s/…/exec — README, étape 1 e).
+  relaisConcepteur: '',
   contacts: {
     whatsapp: ['224623030403', '224624139549'],
     email: 'souleymane0403@gmail.com'
@@ -923,6 +926,8 @@ var Fb = (function () {
       },
       envoyerVerification: function () { return apres(function () { return auth.currentUser.sendEmailVerification(); }); },
       recharger: function () { return apres(function () { var x = auth.currentUser; return x.reload().then(function () { return x.getIdToken(true); }); }).then(u); },
+      // Jeton de connexion (vérifié par Google côté relais du concepteur)
+      jeton: function () { return apres(function () { return auth.currentUser ? auth.currentUser.getIdToken() : null; }); },
       lire: function (chemin, opts) {
         return apres(function () {
           var r = db.ref(chemin);
@@ -993,6 +998,7 @@ var Fb = (function () {
       changerMdp: function (actuel, nouveau) { return appel('auth/password', { token: jeton, current: actuel, next: nouveau }); },
       envoyerVerification: function () { return appel('auth/sendVerification', { token: jeton }); },
       recharger: function () { return appel('auth/me', { token: jeton }).then(function (j) { utilisateur = j.user; return utilisateur; }); },
+      jeton: function () { return Promise.resolve(jeton); },
       lire: function (chemin, opts) { return appel('db/get', { token: jeton, path: chemin, last: opts && opts.dernier }).then(function (j) { return j.value; }); },
       ecrire: function (chemin, val) { return appel('db/set', { token: jeton, path: chemin, value: val }); },
       majGroupee: function (patch) { return appel('db/update', { token: jeton, patch: patch }); },
@@ -1051,7 +1057,18 @@ var Fb = (function () {
     }, function (e) { t.detruire(); throw e; });
   }
 
-  return { instance: instance, creerCompteSepare: creerCompteSepare, message: message, erreur: erreur, simulation: !!SIM, adresseBase: adresseBase };
+  // Relais de validation du compte concepteur (Google Apps Script : outils/relais-concepteur.gs).
+  // Réponse toujours { ok, erreur?, … } ; jamais d'exception.
+  function relais(action, donnees) {
+    var url = SIM ? SIM + '/relais' : LOGES.relaisConcepteur;
+    if (!url) return Promise.resolve({ ok: false, erreur: 'relais_absent' });
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action: action }, donnees || {})) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return j && typeof j === 'object' ? j : { ok: false, erreur: 'reponse' }; }, function () { return { ok: false, erreur: 'reseau' }; });
+  }
+
+  return { instance: instance, creerCompteSepare: creerCompteSepare, message: message, erreur: erreur, simulation: !!SIM, adresseBase: adresseBase,
+    relais: relais, relaisConfigure: function () { return !!(SIM || LOGES.relaisConcepteur); } };
 })();
 
 /* ---- 20-accueil.js ---- */
@@ -4532,6 +4549,8 @@ var Paie = (function () {
    Différence avec AGV : le mot de passe n'est plus dans le code ; la
    connexion passe par Firebase Authentication et les règles de la base
    n'accordent ces droits qu'aux comptes inscrits dans loges_platform/admins.
+   Création du compte : validée uniquement par un code envoyé par e-mail à
+   l'adresse du concepteur (relais Google Apps Script, outils/relais-concepteur.gs).
    Le concepteur gère les licences ; il ne lit aucune donnée pédagogique ou
    financière des écoles.
    ================================================================ */
@@ -4577,7 +4596,7 @@ var Concepteur = (function () {
     FC.pret().then(function () {
       var u = FC.user();
       if (!u) return ecranConnexion();
-      return verifierAdmin(u).then(function (ok) { if (ok) panneau(); else ecranConnexion('Ce compte n\'est pas un compte concepteur.'); });
+      return verifierAdmin(u).then(function (ok) { if (ok) panneau(); else if (estAdresseConcepteur(u)) ecranCode(false); else ecranConnexion('Ce compte n\'est pas un compte concepteur.'); });
     }).catch(function (e) { ecranConnexion(Fb.message(e)); });
   }
   function brancherTete() {
@@ -4610,72 +4629,134 @@ var Concepteur = (function () {
       FC.connexion(em, pw).then(function (u) { return verifierAdmin(u); }).then(function (ok) {
         occupe(bt, false);
         if (ok) return panneau();
-        var u = FC.user();
-        if (u && LOGES.emailsConcepteur.indexOf(u.email) >= 0 && !u.emailVerified) return ecranVerification(u.email);
+        // Compte créé avec l'adresse du concepteur mais pas encore validé par le code
+        if (estAdresseConcepteur(FC.user())) return ecranCode(false);
         FC.deconnexion(); msg('cc-msg', 'Ce compte n\'est pas un compte concepteur.');
       }, function (er) { occupe(bt, false); msg('cc-msg', er.code === 'wrong-password' ? 'Adresse ou mot de passe incorrect.' : Fb.message(er)); });
     };
   }
 
+  /* ---- Création du compte concepteur : validée uniquement par le code reçu par e-mail ----
+     Le code est tiré et envoyé par le relais (Google Apps Script) à la seule adresse du
+     concepteur ; tant qu'il n'est pas saisi, le compte n'a aucun droit (règles de la base). */
+  var ERREURS_RELAIS = {
+    relais_absent: 'L\'envoi du code n\'est pas encore configuré : déployez le relais de validation (README, étape 1 e), puis indiquez son adresse dans la configuration (relaisConcepteur).',
+    reseau: 'Relais de validation injoignable. Vérifiez la connexion Internet et l\'adresse du relais dans la configuration.',
+    reponse: 'Réponse inattendue du relais. Vérifiez qu\'il est déployé en « Application Web » accessible à « Tout le monde ».',
+    session: 'Session expirée : reconnectez-vous.',
+    adresse: 'Ce compte n\'utilise pas l\'adresse du concepteur.',
+    deja: 'Un compte concepteur est déjà validé : celui-ci ne peut pas l\'être.',
+    patienter: function (r) { return 'Un code vient d\'être envoyé. Patientez ' + r.secondes + ' s avant d\'en demander un autre.'; },
+    quota: 'Trop de codes demandés. Réessayez dans une heure.',
+    aucun_code: 'Aucun code en cours : cliquez sur « Envoyer un code ».',
+    code_expire: 'Ce code a expiré : demandez-en un nouveau.',
+    code_faux: function (r) { return 'Code incorrect. Il reste ' + r.reste + ' essai(s).'; },
+    trop_essais: 'Trop d\'essais : ce code n\'est plus valable. Demandez-en un nouveau.',
+    occupe: 'Relais occupé : réessayez dans un instant.',
+    requete: 'Demande refusée par le relais.',
+    interne: function (r) { return 'Erreur du relais : ' + (r.detail || 'inconnue'); }
+  };
+  function texteRelais(r) { var m = ERREURS_RELAIS[r && r.erreur]; return typeof m === 'function' ? m(r) : (m || 'Erreur du relais de validation.'); }
+  function estAdresseConcepteur(u) { return !!u && LOGES.emailsConcepteur.indexOf(String(u.email || '').toLowerCase()) >= 0; }
+  function demanderCode() { return FC.jeton().then(function (t) { return Fb.relais('envoyer', { idToken: t }); }, function () { return { ok: false, erreur: 'session' }; }); }
+
   function ecranPremier() {
+    var email = LOGES.emailsConcepteur[0] || '', pret = Fb.relaisConfigure();
     fenetre(tete('Première configuration') +
-      '<p class="cdb-note" style="margin-bottom:12px">Le premier compte concepteur ne peut être créé qu\'avec l\'adresse prévue dans la configuration (' + esc(LOGES.emailsConcepteur.join(', ')) + '), puis vérifiée par le lien reçu par e-mail. Une fois ce compte enregistré, plus personne ne peut en créer un autre de cette façon.</p>' +
+      '<p class="cdb-note" style="margin-bottom:12px">Le compte concepteur est créé avec l\'adresse <b>' + esc(email) + '</b>. Un code à 6 chiffres est envoyé à cette seule adresse : le compte n\'est validé qu\'après la saisie de ce code. Une fois ce compte validé, plus personne ne peut en créer un autre de cette façon.</p>' +
       '<div id="cc-msg" class="msg"></div><form id="cp-form" novalidate>' +
-      '<div class="champ"><label class="fl" for="cp-email">Adresse e-mail</label><input id="cp-email" class="fi" type="email" value="' + esc(LOGES.emailsConcepteur[0] || '') + '"></div>' +
+      '<div class="champ"><label class="fl" for="cp-email">Adresse e-mail</label><input id="cp-email" class="fi" type="email" value="' + esc(email) + '" readonly></div>' +
       '<div class="fg2"><div class="champ"><label class="fl" for="cp-mdp">Mot de passe</label><input id="cp-mdp" class="fi" type="password" autocomplete="new-password"></div>' +
       '<div class="champ"><label class="fl" for="cp-mdp2">Confirmer</label><input id="cp-mdp2" class="fi" type="password" autocomplete="new-password"></div></div>' +
       '<p class="cdb-note" style="margin-bottom:10px">10 caractères minimum, avec lettres et chiffres.</p>' +
-      '<button class="fb fb-blue" id="cp-ok" type="submit">Créer le compte et envoyer le lien de vérification</button></form>' +
+      '<button class="fb fb-blue" id="cp-ok" type="submit"' + (pret ? '' : ' disabled') + '>Créer le compte et recevoir le code</button></form>' +
       '<p style="margin-top:12px"><button class="lien-sobre" id="cp-retour" style="margin:0">← J\'ai déjà un compte</button></p>');
     brancherTete();
+    if (!pret) msg('cc-msg', texteRelais({ erreur: 'relais_absent' }));
     racine.querySelector('#cp-retour').onclick = function () { ecranConnexion(); };
     racine.querySelector('#cp-form').onsubmit = function (e) {
       e.preventDefault();
-      var em = racine.querySelector('#cp-email').value.trim().toLowerCase(), pw = racine.querySelector('#cp-mdp').value, pw2 = racine.querySelector('#cp-mdp2').value;
-      if (LOGES.emailsConcepteur.indexOf(em) < 0) return msg('cc-msg', 'Cette adresse n\'est pas l\'adresse concepteur prévue.');
+      var em = email.toLowerCase(), pw = racine.querySelector('#cp-mdp').value, pw2 = racine.querySelector('#cp-mdp2').value;
+      if (!Fb.relaisConfigure()) return msg('cc-msg', texteRelais({ erreur: 'relais_absent' }));
       if (pw.length < 10 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return msg('cc-msg', 'Mot de passe trop faible : 10 caractères, lettres et chiffres.');
       if (pw !== pw2) return msg('cc-msg', 'Les deux mots de passe ne sont pas identiques.');
-      var bt = racine.querySelector('#cp-ok'); occupe(bt, true, 'Création…');
-      FC.inscription(em, pw).then(function () { return FC.envoyerVerification(); }).then(function () { ecranVerification(em); }, function (er) {
+      var bt = racine.querySelector('#cp-ok'); occupe(bt, true, 'Création…'); msg('cc-msg', '');
+      FC.inscription(em, pw).catch(function (er) {
+        if (er.code !== 'exists') throw er;
+        // Compte créé lors d'une tentative précédente et jamais validé : on le reprend avec son mot de passe
+        return FC.connexion(em, pw).catch(function (e2) { throw e2.code === 'wrong-password' ? Fb.erreur('autre-mdp') : e2; });
+      }).then(function () { return verifierAdmin(FC.user()); }).then(function (ok) {
+        if (ok) return panneau(); // déjà validé
+        occupe(bt, true, 'Envoi du code…');
+        return demanderCode().then(function (r) {
+          if (r.ok) return ecranCode(true);
+          if (r.erreur === 'patienter') return ecranCode(true, texteRelais(r));
+          occupe(bt, false); msg('cc-msg', texteRelais(r));
+          if (r.erreur === 'deja') FC.deconnexion();
+        });
+      }).catch(function (er) {
         occupe(bt, false);
-        msg('cc-msg', er.code === 'exists' ? 'Un compte existe déjà avec cette adresse : connectez-vous.' : Fb.message(er));
+        msg('cc-msg', er.code === 'autre-mdp' ? 'Un compte existe déjà avec cette adresse, avec un autre mot de passe : saisissez ce mot de passe. Si vous ne le connaissez pas, supprimez ce compte dans la console Firebase (Authentication → Utilisateurs), puis recommencez.' : Fb.message(er));
       });
     };
   }
 
-  function ecranVerification(email) {
-    fenetre(tete('Vérification de l\'adresse') +
-      '<div id="cc-msg" class="msg info on">Un lien de vérification a été envoyé à ' + esc(email) + '. Ouvrez-le (pensez aux courriers indésirables), puis revenez ici.</div>' +
-      '<button class="fb fb-blue" id="cv-ok">J\'ai vérifié mon adresse</button>' +
-      '<p style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap"><button class="lien-sobre" id="cv-renvoi" style="margin:0">Renvoyer le lien</button><button class="lien-sobre" id="cv-retour" style="margin:0">Se déconnecter</button></p>');
+  function ecranCode(envoye, info) {
+    var email = LOGES.emailsConcepteur[0] || '';
+    fenetre(tete('Validation du compte concepteur') +
+      '<p class="cdb-note" style="margin-bottom:12px" id="cv-note">' + (envoye ? 'Un code à 6 chiffres a été envoyé à <b>' + esc(email) + '</b> (pensez aux courriers indésirables). Il est valable 15 minutes.'
+        : 'Ce compte n\'est pas encore validé. Cliquez sur « Envoyer un code » : il sera envoyé à <b>' + esc(email) + '</b>.') +
+        ' Tant que ce code n\'est pas saisi, le compte n\'est pas validé et n\'a aucun droit.</p>' +
+      '<div id="cc-msg" class="msg"></div>' +
+      '<form id="cv-form" novalidate><div class="champ"><label class="fl" for="cv-code">Code reçu par e-mail</label><input id="cv-code" class="fi" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" style="font-size:22px;letter-spacing:8px;text-align:center"></div>' +
+      '<button class="fb fb-blue" id="cv-ok" type="submit">Valider le code</button></form>' +
+      '<p style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap"><button class="lien-sobre" id="cv-renvoi" style="margin:0">' + (envoye ? 'Envoyer un nouveau code' : 'Envoyer un code') + '</button><button class="lien-sobre" id="cv-retour" style="margin:0">Se déconnecter</button></p>');
     brancherTete();
-    racine.querySelector('#cv-renvoi').onclick = function () { FC.envoyerVerification().then(function () { msg('cc-msg', 'Lien renvoyé.', 'ok'); }, function (e) { msg('cc-msg', Fb.message(e)); }); };
+    if (info) msg('cc-msg', info, 'info');
+    var champ = racine.querySelector('#cv-code');
+    champ.focus();
+    champ.oninput = function () { this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); };
     racine.querySelector('#cv-retour').onclick = function () { FC.deconnexion(); ecranConnexion(); };
-    racine.querySelector('#cv-ok').onclick = function () {
-      var bt = this; occupe(bt, true, 'Vérification…');
-      FC.recharger().then(function (u) {
-        if (!u.emailVerified) { occupe(bt, false); return msg('cc-msg', 'L\'adresse n\'est pas encore vérifiée. Ouvrez le lien reçu puis réessayez.'); }
-        return verifierAdmin(u).then(function (ok) { occupe(bt, false); if (ok) panneau(); else msg('cc-msg', 'Un compte concepteur existe déjà : celui-ci ne peut pas être enregistré.'); });
-      }, function (e) { occupe(bt, false); msg('cc-msg', Fb.message(e)); });
+    racine.querySelector('#cv-renvoi').onclick = function () {
+      var bt = this; occupe(bt, true, 'Envoi…');
+      demanderCode().then(function (r) {
+        occupe(bt, false);
+        if (!r.ok) { msg('cc-msg', texteRelais(r)); if (r.erreur === 'deja') FC.deconnexion(); return; }
+        bt.textContent = bt.dataset.txt = 'Envoyer un nouveau code';
+        racine.querySelector('#cv-note').innerHTML = 'Un code à 6 chiffres a été envoyé à <b>' + esc(email) + '</b> (pensez aux courriers indésirables). Il est valable 15 minutes. Tant que ce code n\'est pas saisi, le compte n\'est pas validé et n\'a aucun droit.';
+        msg('cc-msg', 'Nouveau code envoyé. Seul le dernier code reçu est valable.', 'ok');
+        champ.value = ''; champ.focus();
+      });
+    };
+    racine.querySelector('#cv-form').onsubmit = function (e) {
+      e.preventDefault();
+      var code = champ.value.replace(/\s+/g, ''), bt = racine.querySelector('#cv-ok');
+      if (!/^[0-9]{6}$/.test(code)) return msg('cc-msg', 'Saisissez les 6 chiffres du code reçu par e-mail.');
+      occupe(bt, true, 'Vérification…'); msg('cc-msg', '');
+      FC.jeton().then(function (t) { return Fb.relais('valider', { idToken: t, code: code }); }, function () { return { ok: false, erreur: 'session' }; }).then(function (r) {
+        if (!r.ok) { occupe(bt, false); msg('cc-msg', texteRelais(r)); champ.select(); if (r.erreur === 'deja') FC.deconnexion(); return; }
+        return verifierAdmin(FC.user()).then(function (ok) {
+          if (!ok) { occupe(bt, false); return msg('cc-msg', 'Code accepté, mais la base ne reconnaît pas encore le compte : reconnectez-vous dans un instant.'); }
+          return initialiserPlateforme().then(function () { toast('Compte concepteur validé.', 'ok'); panneau(); });
+        });
+      });
     };
   }
 
-  // Le compte est-il concepteur ? Sinon, premier enregistrement si les règles l'autorisent.
+  // Le compte est-il un compte concepteur validé ? (inscrit dans loges_platform/admins par le relais)
   function verifierAdmin(u) {
+    if (!u) return Promise.resolve(false);
     return FC.lire('loges_platform/admins/' + u.uid).then(function (a) {
       if (a) { ADMIN = a; ADMIN.uid = u.uid; return true; }
       return false;
-    }, function () {
-      if (LOGES.emailsConcepteur.indexOf(String(u.email).toLowerCase()) < 0 || !u.emailVerified) return false;
-      var fiche = { nom: 'Souleymane Diallo', email: u.email, creeLe: maintenant() };
-      return FC.ecrire('loges_platform/admins/' + u.uid, fiche).then(function () {
-        ADMIN = fiche; ADMIN.uid = u.uid;
-        return FC.lire('loges_platform/config').then(function (c) {
-          if (c) return;
-          return FC.ecrire('loges_platform/config', { essaiJours: LOGES.essaiParDefaut, publierTarifs: false, devise: 'GNF', whatsapp: LOGES.contacts.whatsapp[0], majLe: maintenant() });
-        }).catch(function () {}).then(function () { toast('Compte concepteur enregistré.', 'ok'); return true; });
-      }, function () { return false; });
-    });
+    }, function () { return false; });
+  }
+  // Premiers réglages de la plateforme, une seule fois après la validation du compte
+  function initialiserPlateforme() {
+    return FC.lire('loges_platform/config').then(function (c) {
+      if (c) return;
+      return FC.ecrire('loges_platform/config', { essaiJours: LOGES.essaiParDefaut, publierTarifs: false, devise: 'GNF', whatsapp: LOGES.contacts.whatsapp[0], majLe: maintenant() });
+    }).catch(function () {});
   }
 
   /* ---------------- Données ---------------- */
@@ -4906,7 +4987,7 @@ var Concepteur = (function () {
         '<div class="champ"><label class="fl" for="cs-n">Nouveau (10 caractères min.)</label><input class="fi" type="password" id="cs-n" autocomplete="new-password"></div>' +
         '<div class="champ"><label class="fl" for="cs-c">Confirmer</label><input class="fi" type="password" id="cs-c" autocomplete="new-password"></div></div>' +
         '<button class="cdb-btn ok" data-s="mdp">Changer le mot de passe</button></div>' +
-      '<p class="cdb-note">Le mot de passe n\'est enregistré nulle part dans l\'application : il est vérifié par Firebase Authentication. Les droits concepteur sont accordés par les règles de la base au seul compte inscrit dans loges_platform/admins.</p>';
+      '<p class="cdb-note">Le mot de passe n\'est enregistré nulle part dans l\'application : il est vérifié par Firebase Authentication. Les droits concepteur sont accordés par les règles de la base au seul compte inscrit dans loges_platform/admins, inscrit par le relais de validation après saisie du code envoyé à l\'adresse du concepteur.</p>';
     // Vérifie que les règles ne sont plus en « mode test » (base ouverte)
     FC.lire('loges_ecoles').then(function () {
       var z = racine && racine.querySelector('#cdb-regles');
@@ -4916,10 +4997,10 @@ var Concepteur = (function () {
       if (!z) return;
       if (e.code !== 'permission') { z.innerHTML = esc(Fb.message(e)); return; }
       // Règles fermées : sont-ce bien celles de cette version (élèves, finances, personnel, emploi du temps) ?
-      FC.lire('loges_platform/regles/v1_3').then(function () {
-        z.innerHTML = '<span style="color:#4ade80;font-weight:800">✓ Règles actives (version 1.3)</span> : chaque école est cloisonnée, y compris vis-à-vis du concepteur.';
+      FC.lire('loges_platform/regles/v1_4').then(function () {
+        z.innerHTML = '<span style="color:#4ade80;font-weight:800">✓ Règles actives (version 1.4)</span> : chaque école est cloisonnée, y compris vis-à-vis du concepteur.';
       }, function () {
-        z.innerHTML = '<span style="color:#fbbf24;font-weight:800">⚠ Règles d\'une version précédente</span> : les inscriptions, paiements, classes, personnel et emplois du temps des écoles sont refusés. Publiez le fichier database.rules.json de cette version.';
+        z.innerHTML = '<span style="color:#fbbf24;font-weight:800">⚠ Règles d\'une version précédente</span> : certaines opérations des écoles peuvent être refusées et la création du compte concepteur n\'est pas réservée au code envoyé par e-mail. Publiez le fichier database.rules.json de cette version.';
       });
     });
   }
