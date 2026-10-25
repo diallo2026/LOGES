@@ -1,0 +1,532 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "loges_codes": {
+      ".read": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+      "$code": {
+        ".read": true,
+        ".write": "auth != null && !data.exists() && $code.matches(/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/) && !root.child('loges_ecoles').child(newData.val()).exists() && newData.parent().parent().child('loges_ecoles').child(newData.val()).child('info').child('code').val() === $code && newData.parent().parent().child('loges_ecoles').child(newData.val()).child('info').child('creePar').val() === auth.uid",
+        ".validate": "newData.isString()"
+      }
+    },
+    "loges_utilisateurs": {
+      "$uid": {
+        ".read": "(auth != null && auth.uid === $uid || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+        ".write": "!data.exists() && !root.child('loges_platform').child('admins').child($uid).exists() && (auth.uid === $uid && newData.parent().parent().child('loges_ecoles').child(newData.child('ecole').val()).child('info').child('creePar').val() === auth.uid && !root.child('loges_ecoles').child(newData.child('ecole').val()).exists() || (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === newData.child('ecole').val() && root.child('loges_ecoles').child(newData.child('ecole').val()).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child(newData.child('ecole').val()).child('membres').child(auth.uid).child('role').val() === 'fondation') && (root.child('loges_ecoles').child(newData.child('ecole').val()).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child(newData.child('ecole').val()).child('licence').child('expiration').val() > now) || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+        ".validate": "newData.hasChildren(['ecole'])",
+        "ecole": {
+          ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "loges_ecoles": {
+      "$sid": {
+        ".write": "auth != null && !data.exists() && newData.child('info').child('creePar').val() === auth.uid && newData.child('membres').child(auth.uid).child('proprietaire').val() === true && newData.child('membres').child(auth.uid).child('role').val() === 'fondation' && newData.child('membres').child(auth.uid).child('statut').val() === 'actif' && !root.child('loges_utilisateurs').child(auth.uid).exists() && !root.child('loges_platform').child('admins').child(auth.uid).exists() && newData.parent().parent().child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && newData.parent().parent().child('loges_codes').child(newData.child('info').child('code').val()).val() === $sid && newData.child('licence').child('statut').val() === 'essai' && newData.child('licence').child('expiration').val() <= now + 2678520000",
+        "info": {
+          ".read": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+          ".write": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+          ".validate": "newData.hasChildren(['code', 'nom', 'fondateur', 'tel', 'region', 'prefecture', 'commune', 'quartier', 'devise', 'creeLe', 'creePar'])",
+          "code": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/) && (!data.exists() || newData.val() === data.val())"
+          },
+          "nom": {
+            ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 150"
+          },
+          "fondateur": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 120"
+          },
+          "tel": {
+            ".validate": "newData.isString() && newData.val().length >= 8 && newData.val().length <= 20 && newData.val().matches(/^[+]?[0-9 ]+$/)"
+          },
+          "email": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "region": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+          },
+          "prefecture": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+          },
+          "commune": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+          },
+          "quartier": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 80"
+          },
+          "devise": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Z]{3}$/)"
+          },
+          "creeLe": {
+            ".validate": "newData.isNumber() && (!data.exists() || newData.val() === data.val())"
+          },
+          "creePar": {
+            ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "licence": {
+          ".read": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+          ".write": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+          ".validate": "newData.hasChildren(['statut', 'expiration'])",
+          "statut": {
+            ".validate": "(newData.val() === 'essai' || newData.val() === 'actif' || newData.val() === 'bloque')"
+          },
+          "debut": {
+            ".validate": "newData.isNumber()"
+          },
+          "expiration": {
+            ".validate": "newData.isNumber()"
+          },
+          "carte": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "carteLibelle": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "dernierPaiement": {
+            ".validate": "newData.isNumber()"
+          },
+          "avantBlocage": {
+            ".validate": "(newData.val() === 'essai' || newData.val() === 'actif')"
+          },
+          "motif": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "majLe": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "parametres": {
+          ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif')",
+          ".write": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+          "nomCourt": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
+          "slogan": {
+            ".validate": "newData.isString() && newData.val().length <= 150"
+          },
+          "adresse": {
+            ".validate": "newData.isString() && newData.val().length <= 250"
+          },
+          "tel2": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "directeur": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "logo": {
+            ".validate": "newData.isString() && newData.val().length <= 300000 && newData.val().beginsWith('data:image/')"
+          },
+          "couleur": {
+            ".validate": "newData.isString() && newData.val().matches(/^#[0-9A-Fa-f]{6}$/)"
+          },
+          "piedDePage": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "formatDate": {
+            ".validate": "(newData.val() === 'JJ/MM/AAAA' || newData.val() === 'JJ-MM-AAAA' || newData.val() === 'AAAA-MM-JJ')"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "identifiants": {
+          ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+          "$username": {
+            ".read": true,
+            ".write": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+            ".validate": "$username.matches(/^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/) && newData.hasChildren(['v'])",
+            "v": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 999"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "membres": {
+          ".read": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'direction') || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (data.child('proprietaire').val() !== true || $uid === auth.uid) || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()) && (data.child('proprietaire').val() === true || newData.child('proprietaire').val() === true))",
+            ".validate": "newData.hasChildren(['username', 'nom', 'role', 'statut', 'proprietaire']) && (newData.child('proprietaire').val() !== true || newData.child('role').val() === 'fondation') && (!data.exists() || $uid !== auth.uid || newData.child('role').val() === data.child('role').val()) && (!data.exists() || $uid !== auth.uid || newData.child('statut').val() === data.child('statut').val())",
+            "username": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]$/) && (!data.exists() || newData.val() === data.val())"
+            },
+            "nom": {
+              ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 120"
+            },
+            "role": {
+              ".validate": "(newData.val() === 'fondation' || newData.val() === 'direction' || newData.val() === 'comptabilite')"
+            },
+            "statut": {
+              ".validate": "(newData.val() === 'actif' || newData.val() === 'desactive' || newData.val() === 'remplace')"
+            },
+            "proprietaire": {
+              ".validate": "newData.isBoolean() && (newData.val() === false && data.val() !== true || newData.val() === true && data.val() === true || newData.val() === true && !root.child('loges_ecoles').child($sid).exists() && $uid === auth.uid || newData.val() === true && !data.exists() && (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))"
+            },
+            "doitChangerMdp": {
+              ".write": "auth != null && auth.uid === $uid && newData.val() === false && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif')",
+              ".validate": "newData.isBoolean()"
+            },
+            "derniereConnexion": {
+              ".write": "auth != null && auth.uid === $uid && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif')",
+              ".validate": "(newData.isNumber() && newData.val() === now)"
+            },
+            "tel": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "email": {
+              ".validate": "newData.isString() && newData.val().length <= 120"
+            },
+            "accesFinances": {
+              ".validate": "newData.isBoolean()"
+            },
+            "creeLe": {
+              ".validate": "newData.isNumber()"
+            },
+            "creePar": {
+              ".validate": "newData.isString()"
+            },
+            "remplacePar": {
+              ".validate": "newData.isString()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "annees": {
+          ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+          "$id": {
+            ".write": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'direction') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+            ".validate": "newData.hasChildren(['libelle', 'debut', 'fin', 'statut', 'courante'])",
+            "libelle": {
+              ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{4}$/)"
+            },
+            "debut": {
+              ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"
+            },
+            "fin": {
+              ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.val() > newData.parent().child('debut').val()"
+            },
+            "statut": {
+              ".validate": "(newData.val() === 'preparation' || newData.val() === 'ouverte' || newData.val() === 'cloturee' || newData.val() === 'archivee')"
+            },
+            "courante": {
+              ".validate": "newData.isBoolean() && (newData.val() === false || newData.parent().child('statut').val() === 'preparation' || newData.parent().child('statut').val() === 'ouverte')"
+            },
+            "creeLe": {
+              ".validate": "newData.isNumber()"
+            },
+            "creePar": {
+              ".validate": "newData.isString()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "niveaux": {
+          ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+          "$id": {
+            ".write": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'direction') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now)",
+            ".validate": "newData.hasChildren(['code', 'nom', 'ordre', 'actif', 'cycle'])",
+            "code": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9_-]{1,12}$/) && (!data.exists() || newData.val() === data.val())"
+            },
+            "nom": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 60"
+            },
+            "ordre": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99"
+            },
+            "actif": {
+              ".validate": "newData.isBoolean()"
+            },
+            "cycle": {
+              ".validate": "(newData.val() === 'prescolaire' || newData.val() === 'primaire' || newData.val() === 'college' || newData.val() === 'lycee')"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "journal": {
+          "admin": {
+            ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation')",
+            "$id": {
+              ".write": "!data.exists() && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation')",
+              ".validate": "newData.hasChildren(['t', 'uid', 'action', 'objet']) && !data.exists()",
+              "t": {
+                ".validate": "(newData.isNumber() && newData.val() === now)"
+              },
+              "uid": {
+                ".validate": "newData.val() === auth.uid"
+              },
+              "auteur": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              },
+              "action": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+              },
+              "objet": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+              },
+              "detail": {
+                ".validate": "newData.isString() && newData.val().length <= 500"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "pedagogie": {
+            ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'direction')",
+            "$id": {
+              ".write": "!data.exists() && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'direction')",
+              ".validate": "newData.hasChildren(['t', 'uid', 'action', 'objet']) && !data.exists()",
+              "t": {
+                ".validate": "(newData.isNumber() && newData.val() === now)"
+              },
+              "uid": {
+                ".validate": "newData.val() === auth.uid"
+              },
+              "auteur": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              },
+              "action": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+              },
+              "objet": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+              },
+              "detail": {
+                ".validate": "newData.isString() && newData.val().length <= 500"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "finance": {
+            ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'comptabilite')",
+            "$id": {
+              ".write": "!data.exists() && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'comptabilite')",
+              ".validate": "newData.hasChildren(['t', 'uid', 'action', 'objet']) && !data.exists()",
+              "t": {
+                ".validate": "(newData.isNumber() && newData.val() === now)"
+              },
+              "uid": {
+                ".validate": "newData.val() === auth.uid"
+              },
+              "auteur": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              },
+              "action": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+              },
+              "objet": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+              },
+              "detail": {
+                ".validate": "newData.isString() && newData.val().length <= 500"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "plateforme": {
+            ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation')",
+            "$id": {
+              ".write": "!data.exists() && (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+              ".validate": "newData.hasChildren(['t', 'uid', 'action', 'objet']) && !data.exists()",
+              "t": {
+                ".validate": "(newData.isNumber() && newData.val() === now)"
+              },
+              "uid": {
+                ".validate": "newData.val() === auth.uid"
+              },
+              "auteur": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              },
+              "action": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+              },
+              "objet": {
+                ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+              },
+              "detail": {
+                ".validate": "newData.isString() && newData.val().length <= 500"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
+        },
+        "connexions": {
+          ".read": "(auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('licence').child('statut').val() !== 'bloque' && root.child('loges_ecoles').child($sid).child('licence').child('expiration').val() > now) && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation')",
+          "$id": {
+            ".write": "!data.exists() && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif')",
+            ".validate": "newData.hasChildren(['t', 'uid']) && !data.exists()",
+            "t": {
+              ".validate": "(newData.isNumber() && newData.val() === now)"
+            },
+            "uid": {
+              ".validate": "newData.val() === auth.uid"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "paiementsLicence": {
+          ".read": "((auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'comptabilite') || (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+          "$id": {
+            ".write": "(!data.exists() && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === $sid && root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child($sid).child('membres').child(auth.uid).child('role').val() === 'comptabilite') && newData.child('statut').val() === 'en_attente' && newData.child('uid').val() === auth.uid || data.exists() && (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+            ".validate": "newData.hasChildren(['carte', 'montant', 'moyen', 't', 'uid', 'statut'])",
+            "carte": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40"
+            },
+            "carteLibelle": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
+            },
+            "mois": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 36"
+            },
+            "montant": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000"
+            },
+            "moyen": {
+              ".validate": "(newData.val() === 'orange_money' || newData.val() === 'mobile_money' || newData.val() === 'especes' || newData.val() === 'virement' || newData.val() === 'autre')"
+            },
+            "reference": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
+            },
+            "t": {
+              ".validate": "newData.isNumber()"
+            },
+            "uid": {
+              ".validate": "newData.isString()"
+            },
+            "statut": {
+              ".validate": "(newData.val() === 'en_attente' || newData.val() === 'valide' || newData.val() === 'rejete')"
+            },
+            "motif": {
+              ".validate": "newData.isString() && newData.val().length <= 300"
+            },
+            "traiteLe": {
+              ".validate": "newData.isNumber()"
+            },
+            "facture": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "loges_platform": {
+      "admins": {
+        ".read": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+        "$uid": {
+          ".write": "((auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()) || auth != null && auth.uid === $uid && !root.child('loges_platform').child('admins').exists() && auth.token.email === 'souleymane0403@gmail.com' && auth.token.email_verified === true && !root.child('loges_utilisateurs').child($uid).exists())",
+          ".validate": "newData.hasChildren(['nom', 'email', 'creeLe'])"
+        }
+      },
+      "config": {
+        ".read": true,
+        ".write": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+        "essaiJours": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 31"
+        },
+        "publierTarifs": {
+          ".validate": "newData.isBoolean()"
+        },
+        "instructions": {
+          ".validate": "newData.isString() && newData.val().length <= 600"
+        },
+        "whatsapp": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "devise": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Z]{3}$/)"
+        },
+        "majLe": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      },
+      "tarifs": {
+        ".read": true,
+        "$id": {
+          ".write": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+          ".validate": "newData.hasChildren(['libelle', 'mois', 'prix', 'actif'])",
+          "libelle": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 80"
+          },
+          "mois": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 36"
+          },
+          "prix": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000"
+          },
+          "actif": {
+            ".validate": "newData.isBoolean()"
+          },
+          "ordre": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "paiements": {
+        ".read": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+        "$id": {
+          ".write": "(!data.exists() && auth != null && newData.child('uid').val() === auth.uid && newData.child('statut').val() === 'en_attente' && (auth != null && root.child('loges_utilisateurs').child(auth.uid).child('ecole').val() === newData.child('ecole').val() && root.child('loges_ecoles').child(newData.child('ecole').val()).child('membres').child(auth.uid).child('statut').val() === 'actif') && (root.child('loges_ecoles').child(newData.child('ecole').val()).child('membres').child(auth.uid).child('role').val() === 'fondation' || root.child('loges_ecoles').child(newData.child('ecole').val()).child('membres').child(auth.uid).child('role').val() === 'comptabilite') || data.exists() && (auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists()))",
+          ".validate": "newData.hasChildren(['ecole', 'carte', 'montant', 'moyen', 't', 'uid', 'statut'])",
+          "justificatif": {
+            ".validate": "newData.isString() && newData.val().length <= 400000 && newData.val().beginsWith('data:image/')"
+          },
+          "statut": {
+            ".validate": "(newData.val() === 'en_attente' || newData.val() === 'valide' || newData.val() === 'rejete')"
+          },
+          "montant": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000"
+          }
+        }
+      },
+      "factures": {
+        ".read": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+        ".write": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())"
+      },
+      "compteurs": {
+        ".read": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())",
+        ".write": "(auth != null && root.child('loges_platform').child('admins').child(auth.uid).exists())"
+      },
+      "$other": {
+        ".validate": false
+      }
+    }
+  }
+}

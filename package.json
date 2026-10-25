@@ -1,0 +1,16 @@
+{
+  "name": "loges",
+  "version": "1.0.0",
+  "description": "LOGES — logiciel de gestion scolaire (application mono-fichier, Firebase)",
+  "scripts": {
+    "assembler": "node outils/assembler.mjs",
+    "regles": "node outils/generer-regles.mjs",
+    "test": "node --test tests/regles.test.mjs && node --test --test-concurrency=1 tests/parcours.test.mjs"
+  },
+  "author": "Souleymane Diallo",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "targaryen": "^3.1.0"
+  },
+  "private": true
+}
